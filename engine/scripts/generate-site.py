@@ -1,0 +1,823 @@
+#!/usr/bin/env python3
+"""Turn a Porta onboarding submission into sites/<slug>/ (the mechanical part).
+
+Usage:
+  python3 engine/scripts/generate-site.py <submission-dir> --slug <slug> --lat <lat> --lng <lng>
+      [--src en] [--translations <file.json>] [--preset auto|bauhaus|soft|minimal|mediterranean|rural]
+
+<submission-dir> holds what the onboarding page stored:
+  host.json                 the hosts/<uid> document (answers, status...)
+  uploads/<id>.json         one document per upload (kind, room, dataUrl or assetId)
+  assets/<assetId>.<ext>    files for uploads stored as assets (fetched separately)
+
+What it does: site.json (name, languages, modules, preset, palette), theme.css from the
+inspiration images, house.json, the house guide (message.json) from the host's own words,
+arrival/extras pages, quick calls, sections.json, photos, logo and icons, and research-todo.md:
+the list of researched modules (eat, markets, things to do...) still to fill by hand or by an agent.
+Texts are kept in the host's language; --translations adds the other languages
+({"source text": {"es": "...", "fr": "..."}}). Re-running is safe: researched content files
+that already exist are never overwritten.
+"""
+import argparse, base64, colorsys, io, json, math, os, re, sys, unicodedata
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[2]
+ENGINE_LANGS = ['en', 'es', 'fr', 'ca', 'de', 'nl']
+
+ap = argparse.ArgumentParser()
+ap.add_argument('src_dir'); ap.add_argument('--slug', required=True)
+ap.add_argument('--lat', type=float, required=True); ap.add_argument('--lng', type=float, required=True)
+ap.add_argument('--src', default='en'); ap.add_argument('--translations')
+ap.add_argument('--preset', default=None)
+ap.add_argument('--research', default=None, help='folder with researched content files (emergency.json, markets.json, todo.json...) copied into the site when missing')
+args = ap.parse_args()
+
+S = Path(args.src_dir)
+host = json.loads((S / 'host.json').read_text())
+A = host.get('answers', host)
+ups = [json.loads(p.read_text()) | {'_id': p.stem} for p in sorted((S / 'uploads').glob('*.json'))] if (S / 'uploads').exists() else []
+TR = json.loads(Path(args.translations).read_text()) if args.translations else {}
+SITE = ROOT / 'sites' / args.slug
+for d in ['content', 'public/guide', 'public/icons', 'i18n', 'docs']: (SITE / d).mkdir(parents=True, exist_ok=True)
+LANGS = [l for l in (A.get('languages') or ['en']) if l in ENGINE_LANGS] or ['en']
+if args.src not in LANGS: LANGS = [args.src] + LANGS
+untranslated = set()
+
+def L(text):
+    """A text in every language of the site: the host's words plus translations when given."""
+    text = (text or '').strip()
+    out = {args.src: TR.get(text, {}).get(args.src, text)}  # a host writing in another language can also translate the generator's own English lines into it
+    if text and text not in TR: untranslated.add(text)      # in the source language too: a listing's words can be in another one
+    for l in LANGS:
+        if l == args.src: continue
+        t = TR.get(text, {}).get(l)
+        if t: out[l] = t
+        elif text: untranslated.add(text); out[l] = out[args.src]   # shown in the host's words until translated: never an empty text
+    return out
+
+# What a place offers (engine/src/amenities.json, the builder's list): items named in six languages. am_ids turns answers
+# into ids: ids stay, words the list knows (a listing's words in any of the six languages, Airbnb's own titles, the
+# builder's former chips) become ids, the rest stays as the host wrote it. The same rules as the builder (onboarding-site/src/amen.js).
+AM = json.loads((ROOT / 'engine/src/amenities.json').read_text())
+AM_BY = {x['id']: x for x in AM['items']}
+am_fold = lambda s: re.sub(r'\s+', ' ', ''.join(c for c in unicodedata.normalize('NFD', str(s or '')) if unicodedata.category(c) != 'Mn').lower().replace('’', "'")).strip()
+AM_WORDS = {}
+for x in AM['items']:
+    for w in [*x['t'].values()] + ([] if x.get('k', '-') == '-' else x['k'].split(',')): AM_WORDS.setdefault(am_fold(w), x['id'])
+def am_match(s):   # "Free washer – In unit", "Lavadora en el alojamiento (Gratis)", "50-inch HDTV": the words before the details
+    full = am_fold(s); head = re.split(r':|\s[–-]\s|\(|,', full)[0].strip()
+    loose = re.sub(r' (de \d+ pulgadas|en el (alojamiento|edificio))$', '', re.sub(r'^\d+[- ]?inch ', '', re.sub(r'^((free|private|shared|indoor|outdoor|in-unit|heated) )+', '', head)))
+    return next((AM_WORDS[w] for w in (full, head, loose) if w in AM_WORDS), '')
+am_ids = lambda xs: list(dict.fromkeys(x if x in AM_BY else (am_match(x) or x) for x in xs if x))
+am_t = lambda x: {l: x['t'][l] for l in LANGS if l in x['t']}
+
+def text_lines(t):
+    return [re.sub(r'^\s*[-*•]\s*', '', x).strip() for x in (t or '').splitlines() if x.strip()]
+def lines(k): return text_lines(A.get(k))
+
+# ---------- images ----------
+def load_upload(u):
+    if u.get('dataUrl'):
+        return Image.open(io.BytesIO(base64.b64decode(u['dataUrl'].split(',', 1)[1])))
+    if u.get('assetId'):
+        for p in (S / 'assets').glob(u['assetId'] + '.*'):
+            return Image.open(p)
+    return None
+
+def save_jpg(img, path, maxw=1600):
+    img = ImageOps.exif_transpose(img).convert('RGB')
+    img.thumbnail((maxw, maxw))
+    img.save(path, 'JPEG', quality=84, optimize=True)
+
+by_kind = {}
+for u in ups: by_kind.setdefault(u.get('kind'), []).append(u)
+
+# ---------- palette from the inspiration images ----------
+def lum(c):
+    def ch(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = c
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+def contrast(a, b):
+    la, lb = sorted([lum(a), lum(b)], reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+hexc = lambda c: '#%02X%02X%02X' % tuple(int(round(x)) for x in c)
+def hls(c): return colorsys.rgb_to_hls(*(x / 255 for x in c))
+def from_hls(h, l, s): return tuple(x * 255 for x in colorsys.hls_to_rgb(h, l, s))
+
+def kmeans(px, k=8, it=12):
+    rng = np.random.default_rng(1)
+    cent = px[rng.choice(len(px), k, replace=False)]
+    for _ in range(it):
+        d = ((px[:, None, :] - cent[None]) ** 2).sum(-1)
+        lab = d.argmin(1)
+        for i in range(k):
+            m = px[lab == i]
+            if len(m): cent[i] = m.mean(0)
+    counts = np.bincount(lab, minlength=k)
+    return [(tuple(cent[i]), counts[i] / len(px)) for i in np.argsort(-counts)]
+
+# The host's logo, when they gave one: the guide's colours come from it (a brand wins over inspiration images).
+logo_up = (by_kind.get('logo') or [None])[0]
+logo_im = load_upload(logo_up) if logo_up else None
+def on_white_bg(im):   # a transparent logo is read on white, not on black
+    im = ImageOps.exif_transpose(im).convert('RGBA'); bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); bg.alpha_composite(im); return bg.convert('RGB')
+# Colours: the chosen look's own, unless the host asked for those of their logo or of their cover picture
+# (answers.colorsFrom). Inspiration images only help "Decide for me" pick a look.
+CF = str(A.get('colorsFrom') or '').lower()
+COLORS_FROM = 'logo' if 'logo' in CF else 'cover' if ('cover' in CF or 'photo' in CF or 'picture' in CF) else 'look'
+def cover_im():
+    cv = (by_kind.get('cover') or [None])[0]
+    im = load_upload(cv) if cv else None
+    url = str(A.get('coverUrl') or '').split('?')[0]
+    if not im and url.startswith('https://a0.muscache.com/'):
+        try: im = Image.open(io.BytesIO(urllib.request.urlopen(urllib.request.Request(url + '?im_w=720', headers={'User-Agent': 'Mozilla/5.0'}), timeout=20).read()))
+        except Exception as e: print('cover for the colours not downloaded:', e)
+    return im
+import urllib.request
+SRC = [on_white_bg(logo_im)] if COLORS_FROM == 'logo' and logo_im else [c for c in [cover_im()] if c] if COLORS_FROM == 'cover' else []
+OWN_COLORS = bool(SRC)
+insp = SRC or [im for im in (load_upload(u) for u in by_kind.get('inspiration', [])) if im]
+stats = {}
+if insp:
+    px = np.concatenate([np.asarray(ImageOps.exif_transpose(im).convert('RGB').resize((120, 120))).reshape(-1, 3).astype(float) for im in insp])
+    clusters = kmeans(px, 9)
+    sat = np.array([hls(c)[2] for c, _ in clusters]); light = np.array([hls(c)[1] for c, _ in clusters]); w = np.array([f for _, f in clusters])
+    stats = {'saturation': float((sat * w).sum()), 'lightness': float((light * w).sum()), 'spread': float(light.max() - light.min()),
+             'colourful': int(((sat > .45) & (w > .04)).sum())}
+    # Paper: a light, quiet colour from the image, or near white tinted by it.
+    lights = sorted([c for c, f in clusters if hls(c)[1] > .82 and hls(c)[2] < .5], key=lambda c: -hls(c)[1])
+    base_h = hls(clusters[0][0])[0]
+    paper = lights[0] if lights else from_hls(base_h, .965, .25)
+    h, l, s = hls(paper); paper = from_hls(h, max(l, .94), min(s, .35))
+    # Ink: the darkest colour, pushed dark enough for long text.
+    dark = min((c for c, _ in clusters), key=lambda c: hls(c)[1])
+    h, l, s = hls(dark); ink = from_hls(h, min(l, .13), min(s, .35))
+    # Accents: the most saturated distinct colours, adjusted to read on paper.
+    acc = []
+    for c, f in sorted(clusters, key=lambda x: -(hls(x[0])[2] * (0.3 + x[1]))):
+        h, l, s = hls(c)
+        if s < .25: continue
+        if any(min(abs(h - hls(a)[0]), 1 - abs(h - hls(a)[0])) < .06 for a in acc): continue
+        acc.append(c)
+    real = list(acc)   # the image's own colours, before the made-up ones below
+    while len(acc) < 4:
+        h = (hls(acc[-1])[0] + .33) % 1 if acc else base_h
+        acc.append(from_hls(h, .45, .55))
+    # Tiles: blue, red and green carry white text, yellow and orange carry ink text.
+    def on_white(c, min_c=3.2):
+        h, l, s = hls(c)
+        while contrast(c, (255, 255, 255)) < min_c and l > .08:
+            l -= .03; c = from_hls(h, l, s)
+        return c
+    def on_ink(c, min_c=5):
+        h, l, s = hls(c)
+        while contrast(c, ink) < min_c and l < .92:
+            l += .03; c = from_hls(h, l, s)
+        return c
+    # Each engine colour slot takes the image colour nearest its hue; missing ones are derived.
+    hd = lambda x, y: min(abs(x - y), 1 - abs(x - y))
+    pool = list(acc[:6]); slots = {}
+    # A logo has few colours: each one, most visible first, takes the free slot nearest its hue, however far.
+    TARGET = {'yellow': .14, 'red': .0, 'blue': .6, 'green': .33, 'orange': .07}
+    for c in (real[:5] if COLORS_FROM == 'logo' and OWN_COLORS else []):
+        free = [k for k in TARGET if k not in slots]
+        slots[min(free, key=lambda k: hd(hls(c)[0], TARGET[k]))] = c
+    for slot, target in TARGET.items():
+        if slot in slots: continue
+        if pool and not (COLORS_FROM == 'logo' and OWN_COLORS):
+            c = min(pool, key=lambda c: hd(hls(c)[0], target))
+            if hd(hls(c)[0], target) < .12:
+                slots[slot] = c; pool.remove(c); continue
+        # No image colour near this slot's hue: derive one at the slot's own hue, never at another colour's hue
+        # (a purple "blue" next to terracotta photos looked wrong). Blue is a calm deep blue, the others mid-tone.
+        slots[slot] = from_hls(target, .40, .45) if slot == 'blue' else from_hls(target, .5, .55)
+    # Yellow must stand apart from the paper: a pale cream "yellow" disappears on the page.
+    if contrast(slots['yellow'], tuple(x for x in paper)) < 1.6 or hls(slots['yellow'])[2] < .45:
+        slots['yellow'] = from_hls(.12, .58, .75)
+    accents = [on_white(slots['blue']), on_white(slots['red']), on_ink(slots['yellow']), on_ink(slots['orange']), on_white(slots['green'])]
+    palette = {'paper': hexc(paper), 'ink': hexc(ink), 'accents': [hexc(c) for c in accents]}
+else:
+    palette = {'paper': '#F7F5F0', 'ink': '#1E1E1E', 'accents': ['#2F5D8A', '#C2502E', '#E2A93B', '#3E7D4F']}
+
+# ---------- layout preset ----------
+mood = args.preset or A.get('mood') or 'bold'   # none picked: Big colour tiles, as the builder shows it (preview.js choosePreset)
+MAP = {'bold': 'bauhaus', 'editorial': 'minimal', 'soft': 'soft', 'minimal': 'minimal', 'mediterranean': 'mediterranean', 'rural': 'rural'}   # editorial: an old answer, the look is gone
+if mood in MAP: preset = MAP[mood]
+elif mood in MAP.values(): preset = mood
+else:  # decide from the images
+    if not stats: preset = 'bauhaus'
+    elif stats['saturation'] < .18: preset = 'minimal'
+    elif stats['lightness'] > .68 and stats['saturation'] < .5: preset = 'soft'
+    elif stats['colourful'] >= 3 and stats['saturation'] > .45: preset = 'bauhaus'
+    else: preset = 'bauhaus'
+
+
+# ---------- style: the host describes it in words; we start from the closest kit, then a design pass makes it theirs ----------
+W = lambda fam, ws: [f'{fam}/{x}.css' for x in ws]
+KITS = {
+ 'rustic':   dict(words='rustic warm earthy cosy farmhouse country countryside tuscan authentic wine terracotta olive handmade natural traditional', preset='rural',
+                  fonts=W('fraunces', [400, 600, 700]) + W('dm-sans', [400, 500, 700]), display='"Fraunces",Georgia,serif', font='"DM Sans",system-ui,sans-serif', r='18px', rs='10px'),
+ 'elegant':  dict(words='elegant luxurious luxury refined boutique hotel classic sophisticated chic upscale quiet', preset='minimal',
+                  fonts=W('cormorant-garamond', [400, 500, 600, 700]) + W('jost', [400, 500, 600]), display='"Cormorant Garamond",Georgia,serif', font='"Jost",system-ui,sans-serif', r='2px', rs='2px'),
+ 'playful':  dict(words='playful fun colourful colorful bright kids family children cheerful happy lively cartoon picture', preset='bauhaus',
+                  fonts=W('bricolage-grotesque', [400, 500, 600, 700]) + W('nunito', [400, 600, 700]), display='"Bricolage Grotesque",system-ui,sans-serif', font='"Nunito",system-ui,sans-serif', r='24px', rs='14px'),
+ 'modern':   dict(words='modern minimal clean simple sleek scandinavian white crisp contemporary tech', preset='minimal',
+                  fonts=W('space-grotesk', [400, 500, 600, 700]) + W('inter', [400, 500, 600]), display='"Space Grotesk",system-ui,sans-serif', font='"Inter",system-ui,sans-serif', r='10px', rs='8px'),
+ 'coastal':  dict(words='sea beach coastal mediterranean blue breezy relaxed surf sun sand island nautical summer greek andalusia whitewashed', preset='mediterranean',
+                  fonts=W('dm-serif-display', [400]) + W('dm-sans', [400, 500, 700]), display='"DM Serif Display",Georgia,serif', font='"DM Sans",system-ui,sans-serif', r='20px', rs='12px'),
+ 'magazine': dict(words='magazine editorial photo story journal design art gallery', preset='minimal',
+                  fonts=W('instrument-serif', [400]) + W('geist', [400, 500, 600, 700]), display='"Instrument Serif",Georgia,serif', font='"Geist",system-ui,sans-serif', r='4px', rs='4px'),
+}
+# The host's own words only: feelWords are written by the listing reader now, and the guide must be the look the builder showed.
+style_text = ' '.join([A.get('styleBrief') or '', A.get('lookLikes') or '', A.get('refLinks') or '']).lower()
+score = {k: sum(style_text.count(w) for w in v['words'].split()) for k, v in KITS.items()}
+kit_id = max(score, key=score.get) if any(score.values()) else None
+KIT = KITS.get(kit_id)
+if KIT and not args.preset and A.get('mood') in (None, '', 'auto'): preset = KIT['preset']
+
+# ---------- the host's written brief wins: palette and fonts ----------
+def _hx(h): return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+def _mix(a, b, t): return '#%02X%02X%02X' % tuple(round(x + (y - x) * t) for x, y in zip(_hx(a), _hx(b)))
+def brief_palette(text):
+    roles, found = {}, []
+    for ln in text.splitlines():
+        low = ln.lower()
+        for m in re.finditer(r'#[0-9a-fA-F]{6}\b', ln):
+            h = m.group(0).upper(); found.append(h)
+            for role, kw in (('paper', 'background|backdrop'), ('ink', 'typograph|text|icons'), ('cta', 'call to action|calls to action|cta|buttons'),
+                             ('primary', 'brand|identity|selected'), ('stone', 'divider|secondary|surface|border')):
+                if re.search(kw, low) and role not in roles: roles[role] = h
+    found = list(dict.fromkeys(found))
+    if len(found) >= 3 and not all(k in roles for k in ('paper', 'ink', 'primary', 'cta')):   # no labels: guess from the colours themselves
+        by_l = sorted(found, key=lambda h: lum(_hx(h)))
+        roles.setdefault('ink', by_l[0]); roles.setdefault('paper', by_l[-1])
+        rest = [h for h in found if h not in (roles['ink'], roles['paper'])]
+        rest.sort(key=lambda h: -hls(_hx(h))[2])
+        if rest: roles.setdefault('cta', rest[0])
+        if len(rest) > 1: roles.setdefault('primary', rest[1])
+    return roles if all(k in roles for k in ('paper', 'ink', 'primary', 'cta')) else None
+BRIEF = A.get('styleBrief') or ''
+BP = brief_palette(BRIEF)
+FONTS_DIR = ROOT / 'node_modules/@fontsource'
+SERIFS = {'Cormorant Garamond': ('cormorant-garamond', [500, 600, 700]), 'Playfair Display': ('playfair-display', [500, 600, 700]), 'Fraunces': ('fraunces', [400, 600, 700]),
+          'DM Serif Display': ('dm-serif-display', [400]), 'Instrument Serif': ('instrument-serif', [400])}
+SANSES = {'Inter': ('inter', [400, 500, 600, 700]), 'Jost': ('jost', [400, 500, 600]), 'DM Sans': ('dm-sans', [400, 500, 700]), 'Nunito': ('nunito', [400, 600, 700]),
+          'Geist': ('geist', [400, 500, 600, 700]), 'Space Grotesk': ('space-grotesk', [400, 500, 600, 700])}
+WARN = []
+def brief_font(table):
+    hits = sorted((BRIEF.lower().find(n.lower()), n) for n in table if n.lower() in BRIEF.lower())
+    for _, n in hits:
+        d, ws = table[n]
+        got = [w for w in ws if (FONTS_DIR / d / f'{w}.css').exists()]
+        if got: return n, [f'{d}/{w}.css' for w in got]
+        WARN.append(f'Font "{n}" is named in the brief but is not installed: add @fontsource/{d} to use it.')
+    return None, []
+DISP, DISP_FILES = brief_font(SERIFS)
+TXT, TXT_FILES = brief_font(SANSES)
+if BP:
+    palette = {'paper': BP['paper'], 'ink': BP['ink'], 'accents': [BP['primary'], BP['cta'], BP.get('stone', _mix(BP['paper'], BP['ink'], .12))]}
+
+a = palette['accents'] + palette['accents']
+# Colours from the host's picture reach every layout in its own way (29 Oct 2026): the presets keep their tile colours in
+# their own tokens (engine/src/styles/presets/*.css), so those come from the picture too, for all layouts at once.
+# Same mapping as the editor (onboarding-site/src/editor.js edLayoutVars).
+def _azulejo(c, l):
+    from urllib.parse import quote
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'><rect width='40' height='40' fill='#fff'/><g fill='{c}'>"
+           "<circle cx='0' cy='0' r='7'/><circle cx='40' cy='0' r='7'/><circle cx='0' cy='40' r='7'/><circle cx='40' cy='40' r='7'/><ellipse cx='20' cy='10.5' rx='3.4' ry='6.5'/>"
+           "<ellipse cx='20' cy='29.5' rx='3.4' ry='6.5'/><ellipse cx='10.5' cy='20' rx='6.5' ry='3.4'/><ellipse cx='29.5' cy='20' rx='6.5' ry='3.4'/>"
+           f"<path d='M20 0l3 3-3 3-3-3zM20 34l3 3-3 3-3-3zM0 20l3-3 3 3-3 3zM34 20l3-3 3 3-3 3z'/></g><circle cx='20' cy='20' r='4.2' fill='{l}'/><circle cx='20' cy='20' r='1.6' fill='{c}'/>"
+           f"<path d='M0 .5h40M.5 0v40' stroke='{c}' stroke-opacity='.35' stroke-width='1'/></svg>")
+    return 'url("data:image/svg+xml,' + quote(svg, safe='') + '")'
+def layout_vars(blue, red, yellow, orange, green):
+    W, K = '#FFFFFF', '#000000'
+    def dk(c):   # white text stays readable on it
+        for _ in range(12):
+            if contrast(_hx(c), (255, 255, 255)) >= 3.2: break
+            c = _mix(c, K, .12)
+        return c
+    blue, red, green = dk(blue), dk(red), dk(green)
+    o = {'--med-cobalt': blue, '--med-navy': _mix(blue, K, .45), '--med-sky': _mix(blue, W, .88), '--med-lemon': yellow, '--med-clay': red, '--med-azulejo': _azulejo(blue, yellow),
+         '--ru-moss': green, '--ru-forest': _mix(green, K, .35), '--ru-bark': _mix(red, K, .62), '--ru-wheat': _mix(yellow, W, .62), '--ru-honey': yellow, '--ru-rust': red, '--ru-leaf': _mix(yellow, W, .45)}
+    for k, c in [('blue', blue), ('butter', yellow), ('blush', red), ('lilac', _mix(blue, red, .5)), ('peach', orange), ('mint', green)]:
+        o[f'--sf-{k}'] = _mix(c, W, .78); o[f'--sf-{k}-d'] = _mix(c, W, .42)
+    return ';'.join(f'{k}:{v}' for k, v in o.items()) + ';'
+ink_on = lambda c: '#FFFFFF' if contrast(tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)), (255, 255, 255)) >= 3 else palette['ink']
+_from = {'logo': "the host's logo", 'cover': "the host's cover picture"}.get(COLORS_FROM, '')
+theme_css = (f"""/* {A.get('guideName') or A.get('placeName')}: colours from {_from} (preset "{preset}").
+   Edit freely: these tokens sit on top of the engine look and the preset. */
+:root{{
+  --paper:{palette['paper']};--ink:{palette['ink']};
+  --blue:{a[0]};--red:{a[1]};--yellow:{a[2]};--orange:{a[3]};--green:{a[4] if len(palette['accents']) > 4 else a[3]};
+  --accent:{a[0]};--k-sky:var(--blue);
+  {layout_vars(a[0], a[1], a[2], a[3], a[4] if len(palette['accents']) > 4 else a[3])}
+}}""" if OWN_COLORS else f"""/* {A.get('guideName') or A.get('placeName')}: the colours and fonts of the preset "{preset}", as they are.
+   Edit freely: tokens here sit on top of the engine look and the preset. */""")
+_tc = SITE / 'theme.css'
+if _tc.exists() and _tc.read_text().lstrip().startswith('/* designed:'):
+    print('theme.css was designed by hand: kept as is')   # the design pass owns it once it starts with "/* designed:"
+elif BP:   # designed from the brief: the template keeps the layout that worked (full-bleed cover, hairline frames, quiet chrome), the brief supplies colours and fonts
+    PAPER, INK, PRIMARY, CTA = BP['paper'], BP['ink'], BP['primary'], BP['cta']
+    STONE = BP.get('stone') or _mix(PAPER, INK, .12)
+    sub = {'PAPER': PAPER, 'INK': INK, 'PRIMARY': PRIMARY, 'CTA': CTA, 'STONE': STONE, 'WHITE': _mix(PAPER, '#FFFFFF', .55),   # cards are a lighter tint of the page colour, never grey
+           'MUTED': _mix(INK, PAPER, .25), 'FAINT': _mix(INK, PAPER, .5), 'OCHRE': _mix(PRIMARY, CTA, .4), 'SLATE': _mix(PRIMARY, INK, .3),
+           'DISPLAY_NAME': DISP or (KIT and KIT['display'].split(',')[0].strip('"')) or 'Cormorant Garamond', 'TEXT_NAME': TXT or (KIT and KIT['font'].split(',')[0].strip('"')) or 'Inter',
+           'HEADER': f"/* generated-design: {A.get('guideName') or A.get('placeName')}, built from the host's written brief (palette, fonts) on engine/templates/designed-theme.css.\n   Rename this comment to /* designed: once a person has edited the file, and the generator will never overwrite it. */"}
+    css = (ROOT / 'engine/templates/designed-theme.css').read_text()
+    for k, v in sub.items(): css = css.replace('{{' + k + '}}', v)
+    _tc.write_text(css)
+else: _tc.write_text(theme_css)
+
+# ---------- photos, cover, logo, icons ----------
+# Cover photo: the host's own upload wins; otherwise the listing's cover photo is saved below (house.jpg), and the host
+# can choose a cover drawn from the theme colours instead (answers.coverChoice = 'drawn').
+cover = (by_kind.get('cover') or [None])[0]
+own_cover = bool(cover and (im := load_upload(cover)))
+if own_cover: save_jpg(im, SITE / 'public/house.jpg', 1800)
+
+ROOM_KEY = {'Living room': 'living', 'Kitchen': 'kitchen', 'Bedroom': 'bedrooms', 'Bathroom': 'bathrooms', 'Pool': 'pool', 'Garden': 'outside',
+            'Terrace': 'outside', 'Outside': 'outside', 'Office': 'office', 'Laundry': 'laundry', 'View': 'outside', 'Other': 'other', '': 'other'}
+room_photos, tour = {}, {}   # by kind of room, for the house guide; by the room's own name ("Bedroom 2"), for the house page
+def keep_room_photo(im, u):
+    key = ROOM_KEY.get(u.get('room', ''), 'other')
+    n = len(room_photos.setdefault(key, [])) + 1
+    f = f'guide/{key}-{n}.jpg'
+    save_jpg(im, SITE / 'public' / f)
+    room_photos[key].append(f)
+    label = str(u.get('label') or u.get('room') or '').strip()
+    if label and label != 'Other': tour.setdefault(label.lower(), {'n': label, 'c': u.get('room', ''), 'photos': []})['photos'].append(f)
+for i, u in enumerate(by_kind.get('photo', [])):
+    im = load_upload(u)
+    if not im: continue
+    keep_room_photo(im, u)
+
+# Photos taken from the host's listing arrive as links (the listing_photos form field), with the room the host confirmed.
+def _listing_photos():
+    raw = host.get('listing_photos') or A.get('listing_photos') or []
+    if isinstance(raw, str):
+        try: raw = json.loads(raw or '[]')
+        except Exception: raw = []
+    if not raw and (S / 'listing_photos.json').exists():
+        try: raw = json.loads((S / 'listing_photos.json').read_text())
+        except Exception: raw = []
+    return [x for x in raw if isinstance(x, dict) and str(x.get('url', '')).startswith('https://a0.muscache.com/')]
+import urllib.request
+for idx, x in enumerate(_listing_photos()):
+    # A copy saved next to the submission (listing_photos/00.img, in the same order) wins over the download.
+    local = next(iter((S / 'listing_photos').glob(f'{idx:02d}.*')), None) if (S / 'listing_photos').exists() else None
+    try:
+        if local: im = Image.open(local)
+        else:
+            req = urllib.request.Request(x['url'] + '?im_w=1200', headers={'User-Agent': 'Mozilla/5.0'})
+            im = Image.open(io.BytesIO(urllib.request.urlopen(req, timeout=20).read()))
+    except Exception as e:
+        print('listing photo not downloaded:', x['url'], e); continue
+    if not cover and str(A.get('coverUrl', '')).split('?')[0] == x['url']: save_jpg(im, SITE / 'public/house.jpg', 1800)   # the listing's own cover photo
+    keep_room_photo(im, x)
+
+# The cover the host picked among the listing photos, when it is not one of the photos kept for the house guide
+_cu = str(A.get('coverUrl') or '').split('?')[0]
+if not cover and not (SITE / 'public/house.jpg').exists() and _cu.startswith('https://a0.muscache.com/'):
+    try:
+        req = urllib.request.Request(_cu + '?im_w=1440', headers={'User-Agent': 'Mozilla/5.0'})
+        save_jpg(Image.open(io.BytesIO(urllib.request.urlopen(req, timeout=20).read())), SITE / 'public/house.jpg', 1800)
+    except Exception as e: print('cover photo not downloaded:', _cu, e)
+
+def square(im, size):
+    im = ImageOps.exif_transpose(im).convert('RGBA')
+    return ImageOps.fit(im, (size, size), Image.LANCZOS)
+# The logo only when the host gave one: no made-up logo (decided 28 Oct 2026), the guide then shows none. The phone and
+# browser icons come from the logo, else from the house photo or the first room photo, else a plain tile in the first accent.
+if logo_im: square(logo_im, 256).save(SITE / 'public/logo-head.png')
+house_jpg = SITE / 'public/house.jpg'
+first_room = next((SITE / 'public' / f for fs in room_photos.values() for f in fs), None)
+icon_im = logo_im or (Image.open(house_jpg) if house_jpg.exists() else Image.open(first_room) if first_room else Image.new('RGBA', (512, 512), a[0]))
+for fn, sz in [('favicon.png', 64), ('apple-touch-icon.png', 180), ('icons/icon-192.png', 192), ('icons/icon-512.png', 512)]:
+    square(icon_im, sz).save(SITE / 'public' / fn)
+mask = Image.new('RGBA', (512, 512), palette['paper']); mask.alpha_composite(square(icon_im, 410), (51, 51)); mask.save(SITE / 'public/icons/icon-maskable-512.png')
+
+# ---------- researched content (done outside this script: web research) ----------
+# Research is written in one language: every text goes through L() like the host's own words, so it is translated
+# (second pass with --translations) and never left empty in another language of the guide.
+def localize(x):
+    if isinstance(x, list): return [localize(v) for v in x]
+    if not isinstance(x, dict): return x
+    if x and all(k in ENGINE_LANGS for k in x) and all(isinstance(v, str) for v in x.values()):
+        out = L(x.get(args.src) or x.get('en') or next(iter(x.values())))
+        for l in LANGS:
+            if (x.get(l) or '').strip(): out[l] = x[l]
+        return out
+    return {k: localize(v) for k, v in x.items()}
+# A researched market without fixed weekly hours (monthly, seasonal, unconfirmed) keeps an empty schedule and says when it
+# runs in words: occasional_when, or its hours text when that is all the research gave.
+def fix_markets(d):
+    for m in d.get('markets') or []:
+        if not m.get('schedule'): m['schedule'] = []
+        if not m['schedule'] and not m.get('occasional_when') and m.get('hours'):
+            h = m.pop('hours'); m['occasional_when'] = h if isinstance(h, dict) else {'en': str(h)}
+    return d
+if args.research:
+    for f in sorted(Path(args.research).glob('*.json')):
+        dst = SITE / 'content' / f.name
+        prev = json.loads(dst.read_text()) if dst.exists() else None
+        if prev is None or prev.get('_research'):   # never overwrite a file someone wrote by hand
+            d = json.loads(f.read_text())
+            if f.name == 'markets.json': d = fix_markets(d)
+            dst.write_text(json.dumps({'_research': 'copied from research by generate-site.py', **localize(d)}, ensure_ascii=False, indent=1)); print('research copied:', f.name)
+
+# ---------- modules ----------
+M = A.get('modules') or {}
+on = lambda k, default=True: M.get(k, default)
+name = (A.get('guideName') or A.get('placeName') or args.slug).strip()
+place = (A.get('placeName') or name).strip()
+town = (A.get('town') or '').strip()
+
+# Wi-Fi with a QR code per network.
+wifi = None
+if A.get('wifiName') and on('wifi'):
+    import segno
+    ssid, pw = A['wifiName'].strip(), (A.get('wifiPassword') or '').strip()
+    q = segno.make(f'WIFI:T:WPA;S:{ssid};P:{pw};;', error='m')
+    svg = q.svg_inline(scale=1, omitsize=True, border=2, dark='#000000')
+    wifi = {'password': pw, 'networks': [{'ssid': ssid, 'label': L('Wi-Fi'), 'qr': svg}]}
+
+house = {'_doc': 'lat/lng: an approximate area point, never the address.', 'name': place, 'lat': args.lat, 'lng': args.lng,
+         'photoPos': '50% 55%', 'checkout': (A.get('checkOut') or '')[:5]}   # no time given: none shown, never one we made up
+HAS_PHOTO = (SITE / 'public/house.jpg').exists()
+if HAS_PHOTO: house['photo'] = 'house.jpg'
+elif first_room: house['photo'] = str(first_room.relative_to(SITE / 'public'))
+# Cover: the host's own photo, else the listing's cover photo (the default, shown in the Look step), else drawn from the colours.
+house['cover'] = 'photo' if own_cover or (HAS_PHOTO and A.get('coverChoice') != 'drawn') else 'themed'
+if wifi:   # the Wi-Fi password never goes in tracked files: private/wifi.json is git-ignored (the engine merges it into house.wifi)
+    (SITE / 'private').mkdir(exist_ok=True)
+    (SITE / 'private/wifi.json').write_text(json.dumps(wifi, ensure_ascii=False, indent=2))
+if A.get('listingUrl'): house['listing'] = A['listingUrl']
+(SITE / 'content/house.json').write_text(json.dumps(house, ensure_ascii=False, indent=1))
+
+# The rooms as the host ordered them (answers.rooms: [{n: name, c: kind of room, t: what guests should know there}]), then
+# any other room a photo names. This one order is the house page's and the house guide's.
+rooms = [r for r in (A.get('rooms') or []) if isinstance(r, dict) and str(r.get('n') or '').strip()]
+rooms += [{'n': d['n'], 'c': d['c']} for k, d in tour.items() if k not in {str(r['n']).strip().lower() for r in rooms}]
+room_kind = lambda r: ROOM_KEY.get(r.get('c') or '', 'other')
+HOUSE_PAGE = bool(on('house') and (HAS_PHOTO or room_photos))
+LISTING_URL = (A.get('listingUrl') or '').strip()
+LISTING_SRC = next((n for k, n in (('airbnb', 'Airbnb'), ('booking.com', 'Booking.com'), ('vrbo', 'Vrbo')) if k in LISTING_URL.lower()), '')
+
+# House guide: rooms from the photos, each how-to line in the room it talks about.
+KW = {'kitchen': r'coffee|oven|hob|stove|dishwasher|fridge|freezer|kettle|microwave|kitchen|cocina|cuina|nespresso|toaster',
+      'living': r'\btv\b|television|sofa|living|netflix|speaker|fireplace|chimenea|heating|calefacci',
+      'bedrooms': r'bed|sheet|linen|blanket|pillow|wardrobe|bedroom',
+      'bathrooms': r'shower|bath|towel|hot water|boiler|toilet|hairdryer|water heater',
+      'pool': r'pool|piscina|swim|sunbed|cover',
+      'outside': r'bbq|barbecue|garden|terrace|patio|hammock|outdoor|plants|watering|grill|shutter|persiana|awning',
+      'laundry': r'wash|dryer|iron|laundry|detergent|lavadora',
+      'office': r'desk|office|printer|workspace|monitor'}
+ROOM = {'living': ('sofa', 'blue', 'Living room'), 'kitchen': ('kitchen', 'green', 'Kitchen'), 'bedrooms': ('bed', 'red', 'Bedrooms'),
+        'bathrooms': ('drop', 'yellow', 'Bathrooms'), 'pool': ('pool', 'blue', 'Pool'), 'outside': ('flame', 'orange', 'Outside'),
+        'laundry': ('washer', 'green', 'Laundry'), 'office': ('desk', 'blue', 'Office'), 'other': ('box', 'ink', 'Good to know')}
+items = {k: [] for k in ROOM}
+for ln in lines('howTos'):
+    k = next((r for r, rx in KW.items() if re.search(rx, ln, re.I)), 'other')
+    items[k].append(ln)
+# What the host wrote in a room's own card goes with that room; a kitchen has one card, bedrooms may have several.
+for r in rooms:
+    for ln in text_lines(r.get('t')):
+        items[room_kind(r)].append(f"{r['n'].strip()}: {ln}" if sum(room_kind(x) == room_kind(r) for x in rooms) > 1 else ln)
+if not HOUSE_PAGE: items['bedrooms'] = lines('sleeping') + items['bedrooms']   # sleeping arrangements as the listing states them; the house page has them otherwise
+# The listing's own equipment list (answers.listingAmenities, as the page states it), sorted into the rooms: each room
+# gets a short line under its title and "Also in the kitchen: ...", like Ca La Kimberly's house guide. Safety items go
+# to "Good to know"; Wi-Fi, parking and generic lines are left out (they have their own places).
+AM_KW = {'kitchen': KW['kitchen'] + r'|refrigerator|cooking basics|dishes|cutlery|silverware|wine glass|baking|dining table|blender|rice cooker|spices|bread maker',
+         'living': KW['living'] + r'|sound system|books|board games|game console|piano|record player|ethernet',
+         'bedrooms': KW['bedrooms'] + r'|hangers|clothing storage|room-darkening|blackout|crib|travel cot',
+         'bathrooms': KW['bathrooms'] + r'|hair dryer|shampoo|conditioner|body soap|shower gel|bidet|bathtub',
+         'pool': KW['pool'] + r'|hot tub',
+         'outside': KW['outside'] + r'|balcony|backyard|outdoor furniture|outdoor dining|sun lounger|fire pit|beach essentials',
+         'laundry': KW['laundry'] + r'|drying rack|clothes drying',
+         'office': KW['office'] + r'|dedicated workspace'}
+SAFE = r'first aid|fire extinguisher|smoke alarm|carbon monoxide'
+JUST_ROOM = r'(kitchen|cocina|cuina|cuisine|pool|piscina|piscine)'   # the listing's "Kitchen" says nothing inside the Kitchen
+am_room = {k: [] for k in ROOM}
+for x in [str(v).strip() for v in (A.get('listingAmenities') or []) if str(v).strip()]:
+    if re.search(r'^(wifi|wi-fi|essentials|tv)$|parking|wifi', x, re.I) and not re.search(r'smart tv', x, re.I): continue
+    if re.fullmatch(JUST_ROOM, x, re.I): continue
+    k = next((r for r, rx in AM_KW.items() if re.search(rx, x, re.I)), 'other' if re.search(SAFE, x, re.I) else None)
+    if k and x not in am_room[k]: am_room[k].append(x)
+low = lambda x: x[:1].lower() + x[1:] if x[1:2].islower() else x
+ALSO = {'living': 'Also in the living room', 'kitchen': 'Also in the kitchen', 'bedrooms': 'Also in the bedrooms', 'bathrooms': 'Also in the bathrooms',
+        'pool': 'Also by the pool', 'outside': 'Also outside', 'laundry': 'Also in the laundry', 'office': 'Also in the office', 'other': 'Also in the house'}
+blocks = []
+first = [k for k in dict.fromkeys(room_kind(r) for r in rooms) if k != 'other']   # "Good to know" stays last
+for k in first + [k for k in ROOM if k not in first]:
+    icon, tone, title = ROOM[k]
+    if not items[k] and not room_photos.get(k) and not am_room[k]: continue
+    b = {'id': k, 'icon': icon, 'tone': tone, 'title': L(title)}
+    if am_room[k]:
+        b['sub'] = L(', '.join([am_room[k][0]] + [low(x) for x in am_room[k][1:3]]))
+        if len(am_room[k]) > 3: b['body'] = L(f"{ALSO[k]}: {', '.join(low(x) for x in am_room[k])}.")   # up to three are all in the line under the title
+    if room_photos.get(k): b['photos'] = room_photos[k]
+    if items[k]: b['items'] = [L(x) for x in items[k]]
+    blocks.append(b)
+# No Wi-Fi block here: Wi-Fi is the first thing on Home (its card opens the network, password and QR code), as in Ca La Kimberly.
+if lines('arrival'):
+    blocks.insert(0, {'id': 'arrival', 'icon': 'car', 'tone': 'blue', 'title': L('Getting here'), 'items': [L(x) for x in lines('arrival')]})
+if lines('localTips'):
+    blocks.append({'id': 'tips', 'icon': 'home', 'tone': 'green', 'title': L('Local tips'), 'items': [L(x) for x in lines('localTips')]})
+if lines('houseRules'):
+    blocks.append({'id': 'rules', 'icon': 'home', 'tone': 'ink', 'title': L('House rules'), 'items': [L(x) for x in lines('houseRules')]})
+co = ([f"Check-out by {house['checkout']}."] if house['checkout'] else []) + lines('checkoutTasks')
+if A.get('checkIn'): co.insert(0, f"Check-in from {A['checkIn'][:5]}.")
+if co: blocks.append({'id': 'checkout', 'icon': 'key', 'tone': 'ink', 'title': L('Check-in and check-out'), 'items': [L(x) for x in co]})
+(SITE / 'content/message.json').write_text(json.dumps({'_doc': 'House guide by room, from the host’s onboarding answers.', 'blocks': blocks}, ensure_ascii=False, indent=1))
+
+def _num(x):
+    try: return float(str(x).replace(',', '.'))
+    except Exception: return None
+# The house page (#s/house), the same page as Ca La Kimberly's: photos, the key facts, the description, the rooms in the
+# host's order, the beds, what the place offers, the reviews.
+if HOUSE_PAGE:
+    in_en = lambda x: TR.get(x, {}).get('en', x).lower()
+    facts = [str(A.get('propertyType') or '').strip()]
+    for k, one, many in (('sleeps', 'guest', 'guests'), ('bedrooms', 'bedroom', 'bedrooms'), ('beds', 'bed', 'beds'), ('bathrooms', 'bathroom', 'bathrooms')):
+        n = str(A.get(k) or '').strip()
+        if n and n != '0': facts.append(f'{n} {one if n == "1" else many}')
+    # In the host's order: each room with its photos; the gallery on top starts with the cover, then one photo of each room.
+    by_name = [tour[str(r['n']).strip().lower()] for r in rooms if str(r['n']).strip().lower() in tour]
+    leads, rest = [d['photos'][0] for d in by_name], [f for d in by_name for f in d['photos'][1:]]
+    leads += [f for fs in room_photos.values() for f in fs if f not in leads and f not in rest]
+    # A few big things on top, in the listing's own words when it says them ("Private pool: open all year"), else the host's tick.
+    said = [str(x).strip() for x in (A.get('listingAmenities') or []) if str(x).strip()]
+    # What the place offers: ids of engine/src/amenities.json (named in six languages), plus the host's own words. Older
+    # answers held the builder's English chips and the listing's words apart: those are matched to the list too, and a
+    # listing word the list does not know is left out (it would repeat a ticked one in other words).
+    ticked = [str(x).strip() for x in (A.get('amenities') or []) if str(x).strip()]
+    offers = am_ids(ticked if any(x in AM_BY for x in ticked) else ticked + [x for x in said if am_match(x)])
+    highlights = []
+    for icon, rx, ids in (('pool', r'pool|piscin', ['pool']), ('flame', r'bbq|barbecue|barbacoa|grill', ['bbq']), ('view', r'\bviews?\b|vistas?\b|\bvues?\b', [i for i in offers if AM_BY.get(i, {}).get('g') == 'views']), ('desk', r'workspace|work area|zona para trabajar', ['workspace'])):
+        x, own = next((v for v in said if re.search(rx, v, re.I)), None), next((i for i in ids if i in offers), None)
+        parts = re.split(r':|\s[–-]\s', x or '', maxsplit=1); t, more = parts[0].strip(), (parts[1:] or [''])[0]
+        if x and ((own and more.strip()) or not any(i in AM_BY for i in offers)):   # the listing's words say more ("Private pool: open all year"), if the host kept it
+            highlights.append({'icon': icon, 't': L(t), **({'s': L(more.strip())} if more.strip() else {})})
+        elif own: highlights.append({'icon': icon, 't': am_t(AM_BY[own])})
+    page = {'_doc': 'The house page (#s/house), from the listing and the host\'s rooms. photos: the gallery on top. tour: the rooms in the host\'s order. amenities: by group of engine/src/amenities.json. amenFirst: how many show before "Show all"; amenTop: the most asked for, shown first while still in the list.',
+            'summary': L(' · '.join(x for x in facts if x)), 'photos': (['house.jpg'] if HAS_PHOTO else []) + (leads + rest)[:16], 'highlights': highlights, 'beds': [L(x) for x in lines('sleeping')]}
+    if A.get('welcome'): page['description'] = L(A['welcome'])
+    if _num(A.get('ratingAvg')): page['rating'] = {'stars': _num(A.get('ratingAvg')), 'count': int(_num(A.get('ratingCount')) or 0) or None}
+    if by_name: page['tour'] = [{'room': L(d['n']), 'photos': d['photos']} for d in by_name]
+    if offers:   # by group, in the list's order; the host's own at the end; the most asked for shown first (amenTop)
+        groups = [{'t': am_t(g), 'items': [am_t(x) for x in AM['items'] if x['g'] == g['id'] and x['id'] in offers] + ([L(x) for x in offers if x not in AM_BY] if g['id'] == 'other' else [])} for g in AM['groups']]
+        top = sorted((AM_BY[x] for x in offers if AM_BY.get(x, {}).get('top')), key=lambda x: x['top'])
+        page.update({'amenities': [g for g in groups if g['items']], 'amenFirst': 8, 'amenTop': [am_t(x) for x in top[:8]]})
+    if LISTING_URL: page['url'] = LISTING_URL
+    m = re.match(r'(https?://[^/]*airbnb\.[^/]+/rooms/\d+)', LISTING_URL)
+    if m: page['photosUrl'] = m.group(1) + '/photos'
+    (SITE / 'content/house-page.json').write_text(json.dumps(page, ensure_ascii=False, indent=1))
+
+# Ratings and reviews (optional section the host switched on). Data contract for the guide: content/reviews.json.
+# Live, not curated: the guide shows the listing's own rating and latest reviews as they are, with a link. The values here are a
+# snapshot taken at onboarding (the fallback). The engine shows it on the house page, or at the end of the house guide when there is no house page.
+if M.get('reviews') and (A.get('listingUrl') or A.get('ratingAvg')):
+    (SITE / 'content/reviews.json').write_text(json.dumps({
+        '_doc': 'Ratings and reviews. Live from the listing, never curated by hand. rating and count: a snapshot from onboarding. quotes: the listing latest reviews as they are, [{name, date: YYYY-MM, text, lang}]. updated: YYYY-MM-DD last read, or null.',
+        'mode': 'live', 'rating': _num(A.get('ratingAvg')), 'count': int(_num(A.get('ratingCount')) or 0) or None,
+        'source': LISTING_SRC or 'the listing', 'url': LISTING_URL, 'quotes': [], 'updated': None}, ensure_ascii=False, indent=1))
+
+def info(fid, title_key_text, paras, icon='car', tone='blue'):
+    (SITE / f'content/{fid}.json').write_text(json.dumps({'blocks': [
+        {'id': fid, 'icon': icon, 'tone': tone, 'title': L(title_key_text), 'items': [L(p) for p in paras]}]}, ensure_ascii=False, indent=1))
+
+# Home tiles start empty (the host pins places in the editor). The taxi they trust goes to Getting around (section
+# "transport", content/transport.json) with a one-tap tile on Home; stations and bus stops are added in the editor.
+quick = []
+def phone_of(s): m = re.search(r'\+?\d[\d\s]{6,}\d', s or ''); return m.group(0).strip() if m else None
+taxis = []
+if A.get('taxi') and phone_of(A['taxi']):
+    nm = re.sub(r'[,:]?\s*\+?\d[\d\s]{6,}\d.*$', '', A['taxi']).strip() or 'Taxi'
+    taxis.append({'id': 'taxi', 'name': L(nm), 'phone': phone_of(A['taxi']), 'what': L('The taxi we use and trust.')})
+(SITE / 'content/quick.json').write_text(json.dumps({'items': quick}, ensure_ascii=False, indent=1))
+if taxis:
+    (SITE / 'content/transport.json').write_text(json.dumps({'_doc': 'Getting around: taxis and stations or stops, on their own page; tile = a one-tap tile on Home. Written by generate-site.py from the host\'s taxi answer.',
+        'taxis': taxis, 'stations': [], 'tile': {'name': L('Taxi'), 'sub': taxis[0]['name']}}, ensure_ascii=False, indent=1))
+
+
+# ---------- host-supplied content: how rubbish works, and the places the host recommends ----------
+# Neither is researched: only the host knows them. Rubbish comes from the plan they ticked; places from their own list.
+GD = json.loads((Path(__file__).parent / 'garbage-defaults.json').read_text())
+def gl(obj): return {l: (obj.get(l) or obj.get('en')) for l in LANGS}
+def gl_steps(lst): return [gl(x) for x in lst]
+rmode = A.get('rubbishMode') or ''
+rplan = A.get('rubbishPlan') or {}
+# Containers the host listed: where (their words), what each takes (fraction ids), an optional Google Maps link (a point on the map when it has coordinates).
+def coords_of(url):
+    m = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', url or '') or re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url or '') or re.search(r'[?&](?:q|query|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url or '')
+    return (float(m.group(1)), float(m.group(2))) if m else None
+spots = [r for r in (A.get('rubbishSpots') or []) if isinstance(r, dict) and ((r.get('w') or '').strip() or r.get('t') or (r.get('m') or '').strip())]
+if not spots and (A.get('rubbishWhere') or '').strip(): spots = [{'w': A['rubbishWhere'].strip(), 't': [], 'm': ''}]
+if spots and not rmode: rmode = 'Shared containers in the street'
+r_home = bool(re.search('house|mix', rmode, re.I)); r_cont = bool(re.search('container|mix', rmode, re.I))
+if rmode:
+    fr = []
+    for fid in ['organic', 'packaging', 'paper', 'glass', 'rest']:
+        days = [d for d in (rplan.get(fid) or [])] if r_home else []
+        binn = 'street' if not days else ('brown' if fid == 'organic' else 'grey')
+        fr.append({'id': fid, 'bin': binn, 'days': days, 'name': gl(GD['names'][fid]), 'examples': gl(GD['examples'][fid])})
+    steps = []
+    steps += gl_steps(GD['steps_containers'] if (r_cont and not r_home) else GD['steps_home'])
+    if (A.get('rubbishNotes') or '').strip(): steps += [L(x) for x in lines('rubbishNotes')]
+    t = (A.get('rubbishTime') or '')[:5]
+    containers, g_items = [], []
+    for n, r in enumerate(spots, 1):
+        takes = [x for x in (r.get('t') or []) if x in ('organic', 'packaging', 'paper', 'glass', 'rest')]
+        c = {'where': L((r.get('w') or '').strip()) if (r.get('w') or '').strip() else {}, 'takes': takes}
+        link = (r.get('m') or '').strip()
+        if link.startswith('http'): c['map'] = link
+        pt = coords_of(link)
+        if pt: c['lat'], c['lng'] = pt
+        containers.append(c)
+        if pt:   # on the guide map too; a glass-only point is the "glass" spot the rubbish page links to
+            g_items.append({'id': 'glass' if takes == ['glass'] else f'containers-{n}', 'name': L('Containers'), 'town': town, 'lat': pt[0], 'lng': pt[1],
+                            'km_from_house': None, 'description': c['where'], 'gmaps': link, 'icon': 'bin'})
+    (SITE / 'content/garbage.json').write_text(json.dumps({
+        '_doc': 'Generated from what the host said about rubbish. Not researched. Bin colours for door-to-door collection are a default: confirm with the host.',
+        'collectionTime': t, 'bins': {}, 'fractions': fr, 'steps': steps,
+        'missed': gl(GD['missed_containers'] if (r_cont and not r_home) else GD['missed_home']), 'containers': containers, 'items': g_items}, ensure_ascii=False, indent=1))
+
+def place_name_from(p):
+    p = p.strip(); m = re.search(r'google\.[a-z.]+/maps/place/([^/@?]+)', p)
+    if m: return re.sub(r'\s+', ' ', re.sub(r'[+_]', ' ', __import__('urllib.parse').parse.unquote(m.group(1)))).strip()
+    return p
+GEO = json.loads((S / 'geocode.json').read_text()) if (S / 'geocode.json').exists() else {}
+# A short Google Maps link (maps.app.goo.gl/...) says nothing by itself: one request reads where it redirects
+# (the redirect is not followed), which gives the place's name and exact position.
+import urllib.request, urllib.error
+def resolve_short(url):
+    if not re.search(r'maps\.app\.goo\.gl|goo\.gl/maps', url): return {}
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k): return None
+    try:
+        urllib.request.build_opener(NoRedirect).open(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10)
+        return {}
+    except urllib.error.HTTPError as e:
+        loc = e.headers.get('Location') or ''
+    except Exception:
+        return {}
+    out = {}
+    if re.search(r'google\.[a-z.]+/maps/place/', loc): out['name'] = place_name_from(loc)
+    m = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', loc) or re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', loc)
+    if m:
+        out['lat'], out['lng'] = float(m.group(1)), float(m.group(2))
+        out['km'] = max(1, round(math.hypot((out['lat'] - args.lat) * 111, (out['lng'] - args.lng) * 111 * math.cos(math.radians(args.lat))) * 1.3))
+    return out
+# The host's own places (bars and restaurants, and Nightlife when they switched it on), each list into its own file.
+def host_list(key):
+    return [r for r in (A.get(key) or []) if isinstance(r, dict) and (r.get('p') or '').strip()]
+def host_items(rows, filters=False):   # filters: the quick filters of Things to do, worked out from the kind of place
+    items = []
+    for r in rows:
+        key = r['p'].strip(); g = GEO.get(key) or resolve_short(key)
+        nm = (g.get('name') or place_name_from(key)) if key.startswith('http') else key   # a name the host typed stays theirs (Jopenkerk, not Google's "Jopen")
+        isurl = key.startswith('http'); ismaps = bool(re.search(r'google\.[a-z.]+/maps|maps\.app\.goo\.gl|goo\.gl/maps', key))
+        # Looked up on Google by the worker (geocode.json): real position, distance, town, hours, kind of place. Not found:
+        # no position (nomap: no pin, no distance, directions by name; the house's point only satisfies the content check),
+        # no kind, no warning (the host vouches for their own places).
+        it = {'id': re.sub(r'[^a-z0-9]+', '-', nm.lower()).strip('-')[:40] or 'place', 'name': {l: nm for l in LANGS},
+              **({'type': L(g['type'])} if g.get('type') else {}), 'town': g.get('town') or town, 'place': g.get('place', ''),
+              'lat': g.get('lat', args.lat), 'lng': g.get('lng', args.lng), 'km_from_house': g.get('km'),
+              'tags': g.get('tags', []) if filters else [], **({'group': g['group']} if filters and g.get('group') else {}),
+              'flags': ['check'] if g.get('status') == 'CLOSED_TEMPORARILY' else [], 'hostPick': True,
+              **({'gid': g['gid']} if g.get('gid') else {}), **({'always': True} if g.get('always') else {}), **({} if g.get('lat') else {'nomap': True}),
+              'gmaps': g.get('gmaps') or (key if ismaps else 'https://www.google.com/maps/search/?api=1&query=' + __import__('urllib.parse').parse.quote_plus(nm + ' ' + (g.get('town') or town)))}
+        if (r.get('c') or '').strip(): it['description'] = L(r['c'].strip())   # the host's own words; no comment, no description
+        if isurl and not ismaps: it['url'] = key
+        for k2 in ('phone', 'hours', 'schedule', 'price', 'priceNote', 'icon', 'wiki'):
+            if g.get(k2): it[k2] = L(g[k2]) if k2 in ('hours', 'priceNote') else g[k2]
+        items.append(it)
+    return items
+def write_host_places(rows, file):
+    (SITE / f'content/{file}.json').write_text(json.dumps({'_doc': "The host's own list, written by generate-site.py. No researched places are added here.", 'items': host_items(rows)}, ensure_ascii=False, indent=1))
+fav, night = host_list('favEat'), host_list('favNight')
+if fav: write_host_places(fav, 'restaurants')
+if night: write_host_places(night, 'nightlife')
+# Things to do: only what the host chose, the cards they kept in the swipe game and the places they added (Yohann, 30 Oct
+# 2026: nothing goes in that the host has not seen). A place the research found too keeps its description, with the host's
+# comment if any. The rest of the research goes to docs/more-places.json, without the cards they turned down: the worker
+# makes it cards in the editor, for them to keep or skip.
+plain = lambda x: re.sub(r'[^a-z0-9]+', '', unicodedata.normalize('NFD', str(x).lower()).encode('ascii', 'ignore').decode())
+en_name = lambda it: (lambda n: n.get('en') or next(iter(n.values()), '') if isinstance(n, dict) else n or '')(it.get('name'))
+swipes = [s for s in (A.get('swipes') or {}).values() if isinstance(s, dict) and s.get('cat', 'todo') == 'todo' and (s.get('name') or '').strip()]
+raw_added = A.get('favDo')
+added = host_list('favDo') if isinstance(raw_added, list) else [{'p': x.strip()} for x in re.split(r'[,\n]+', raw_added or '') if x.strip()]
+kept = [{'p': s['name'].strip(), 'c': s.get('c') or ''} for s in swipes if s.get('d') == 'yes']
+for s in swipes:   # the card already has its position and link: no lookup
+    if s.get('d') == 'yes' and s.get('lat') is not None:
+        GEO.setdefault(s['name'].strip(), {'lat': s['lat'], 'lng': s['lng'], 'km': s.get('km'), 'gmaps': s.get('maps'), 'type': s.get('type')})
+turned_down = {plain(s['name']) for s in swipes if s.get('d') == 'no'}
+todo_file = SITE / 'content/todo.json'
+if todo_file.exists() or kept or added:
+    todo_doc = json.loads(todo_file.read_text()) if todo_file.exists() else {'_doc': "The host's places, written by generate-site.py."}
+    found, picks = [x for x in todo_doc.get('items') or [] if plain(en_name(x)) not in turned_down], []
+    for it in host_items(kept + added, True):
+        key = plain(en_name(it))
+        twin = next((x for x in found if len(key) >= 5 and (key in plain(en_name(x)) or plain(en_name(x)) in key)), None)
+        if twin:
+            found.remove(twin); it = {**twin, 'hostPick': True, **({'description': it['description']} if it.get('description') else {})}
+        if not any(plain(en_name(x)) == plain(en_name(it)) for x in picks): picks.append(it)
+    todo_doc['items'] = [{k: v for k, v in x.items() if k not in ('_card', '_google')} for x in picks]
+    todo_file.write_text(json.dumps(todo_doc, ensure_ascii=False, indent=1))
+    (SITE / 'docs').mkdir(parents=True, exist_ok=True)
+    for x in found: x.setdefault('id', re.sub(r'[^a-z0-9]+', '-', en_name(x).lower()).strip('-')[:40] or 'place'); x.pop('_card', None)
+    (SITE / 'docs/more-places.json').write_text(json.dumps(found, ensure_ascii=False, indent=1))
+
+# Sections, in Home order. Researched ones start as "soon" until their content file has items.
+def has_items(f):
+    p = SITE / f'content/{f}.json'
+    if not p.exists(): return False
+    d = json.loads(p.read_text())
+    return bool(d.get('items') or d.get('blocks') or d.get('groups') or d.get('markets') or d.get('fractions') or d.get('taxis') or d.get('stations'))
+# Same sections as the live Ca La Kimberly guide (sites/ca-la-kimberly/content/sections.json): house guide, garbage, emergency, markets,
+# restaurants (the host's own list), things to do, events, plus the quick tiles and the map; and Nightlife (the host's own
+# list too), part of the design since 29 Oct 2026 but off unless the host switches it on (Ca La Kimberly does not have it). Arrival and parking live inside the house guide.
+# Optional extra sections for other hosts (arrival, extras, essentials, kids, day trips) come later: add them back here and in onboarding SECTIONS.
+SEC = [
+    ('garbage', 'house', 'garbage', 'garbage', {'color': 'glass', 'mapLabelKey': 'glassChip'}, 'rubbish'),
+    ('message', 'house', 'info', 'houseGuide', {}, 'houseguide'),
+    ('emergency', 'house', 'contacts', 'emergency', {}, 'emergency'),
+    ('transport', 'house', 'transport', 'gettingAround', {}, 'quick'),
+    ('markets', 'area', 'markets', 'markets', {}, 'markets'),
+    ('restaurants', 'area', 'spots', 'barsRestaurants', {'color': 'restaurants'}, 'eat'),
+    ('todo', 'area', 'spots', 'whatToDo', {'color': 'todo'}, 'todo'),
+    ('nightlife', 'area', 'spots', 'nightlife', {'color': 'nightlife'}, 'nightlife'),   # optional (off unless the host switched it on); not in Ca La Kimberly
+    ('events', 'area', 'events', 'events', {'color': 'events'}, 'events'),
+]
+sections, modules, research = [], {'house': HOUSE_PAGE, 'quick': bool(quick) and on('quick'), 'map': on('map')}, []
+if HOUSE_PAGE: sections.append({'id': 'house', 'group': 'house', 'kind': 'house', 'labelKey': 'theHouse', 'status': 'live', 'file': 'house-page'})
+for sid, grp, kind, label, extra, mod in SEC:
+    want = on(mod, mod in ('houseguide', 'emergency', 'todo', 'rubbish', 'markets', 'events', 'eat', 'quick'))   # on unless the host switched it off, as in the builder; rubbish and eat need the host's answer, markets need researched content: checked below
+    if sid == 'garbage': want = want and bool(rmode)   # only the host can tell us: no answer, no section
+    if sid == 'restaurants': want = want and bool(fav)
+    if sid == 'nightlife': want = on('nightlife', False) and bool(night)
+    if sid == 'transport': want = want and bool(taxis)
+    modules[sid] = bool(want)
+    if not want: continue
+    live = kind == 'markets' and (SITE / 'content/markets.json').exists() or has_items(sid)
+    sections.append({'id': sid, 'group': grp, 'kind': kind, 'labelKey': label, 'status': 'live' if live else 'soon', **extra})
+    if not live: research.append(sid)
+if 'markets' not in modules or not modules['markets'] or not (SITE / 'content/markets.json').exists():
+    modules['markets'] = modules.get('markets', False) and (SITE / 'content/markets.json').exists()
+(SITE / 'content/sections.json').write_text(json.dumps({'_doc': 'Generated from onboarding. Order = Home order within each group.', 'sections': sections}, ensure_ascii=False, indent=1))
+
+# Site-specific strings: the place name and area.
+area = ', '.join(x for x in [town, A.get('region', '')] if x)
+LISTING_WORDS = {'housePhotosSub': 'Photos, rooms and description', 'airbnbReviews': '{n} reviews',
+                 'bookAirbnb': f'Book on {LISTING_SRC}' if LISTING_SRC else 'See the listing',
+                 'bookAirbnbLead': f'Not staying with us yet? Check dates and book on {LISTING_SRC}.' if LISTING_SRC else 'Not staying with us yet? See the listing.',
+                 'allPhotosAirbnb': f'All photos on {LISTING_SRC}' if LISTING_SRC else 'All photos'}
+for l in LANGS:
+    o = {'appName': name, 'houseName': place, 'brandSub': area}
+    if A.get('tagline'): o['welcome'] = L(A['tagline']).get(l, A['tagline'])
+    if LISTING_SRC != 'Airbnb':   # the house page's strings name Airbnb; another listing, or none, gets its own
+        for k, x in LISTING_WORDS.items(): o[k] = L(x).get(l, x)
+    (SITE / f'i18n/{l}.json').write_text(json.dumps(o, ensure_ascii=False, indent=2))
+
+site = {
+    '_doc': 'Generated by engine/scripts/generate-site.py from a Porta onboarding. Safe to edit by hand.',
+    'slug': args.slug, 'name': name,
+    'description': f'{name}, guest guide for {place}{", " + town if town else ""}: house guide, places nearby, map and directions.',
+    **({'logo': 'logo-head.png'} if logo_im else {}), 'shareImage': 'house.jpg' if HAS_PHOTO else ('logo-head.png' if logo_im else 'favicon.png'), 'languages': LANGS, 'storageKey': args.slug,
+    'area': {'radiusKm': {'15 min': 15, '30 min': 30, '45 min': 45, '1 hour': 60}.get(A.get('radius'), 30)},
+    'modules': modules,
+    'theme': {'preset': preset, **({'fonts': DISP_FILES + TXT_FILES} if (DISP_FILES or TXT_FILES) else {}), 'paper': palette['paper'], 'manifestBackground': palette['paper'], 'manifestTheme': a[0], 'darkMode': False},
+    'previewImages': (['logo-head.png'] if logo_im else []) + ['favicon.png'] + (['house.jpg'] if HAS_PHOTO else []),
+    'onboarding': {'mood': A.get('mood'), 'styleKit': kit_id, 'imageStats': stats, 'palette': palette, 'presetChosen': preset}
+}
+(SITE / 'site.json').write_text(json.dumps(site, ensure_ascii=False, indent=2))
+
+# What is left for research, with the host's own hints.
+todo = [f'# Research to do for {name}', '', f'Area: {area} · radius {site["area"]["radiusKm"]} km · point {args.lat}, {args.lng}', '',
+        'Fill each file in content/ (same shapes as sites/ca-la-kimberly/content), then set its section to "live" (re-running this script does it).',
+        'Before researching, read docs/CURATION.md: list what a guest would not find by searching Google themselves (no groceries, no golf courses for golfers), each with a one-line reason.', '']
+hints = {'todo': 'favourites', 'essentials': 'essentials'}   # rubbish and restaurants are never researched
+for sid in research:
+    todo.append(f'- [ ] {sid}' + (f": host notes: {A.get(hints[sid], '')!r}" if hints.get(sid) and A.get(hints[sid]) else ''))
+todo += ['', f'Interests: {", ".join(A.get("interests") or [])}', f'Guests: {", ".join(A.get("guests") or [])}',
+         f'Avoid: {A.get("avoidPlaces") or "-"}', f'Extra ideas from the host: {A.get("moduleIdeas") or "-"}']
+(SITE / 'docs/research-todo.md').write_text('\n'.join(todo) + '\n')
+(SITE / 'docs/style-brief.md').write_text('\n'.join([f'# Style brief for {name}', '',
+    'The host described the look in their own words. The generator picks the closest starting kit (fonts, radii, layout base) and the palette from their images;',
+    'the design pass then writes this guide\'s own theme.css so it does not look like any other guide.', '',
+    f'- In their words: {A.get("styleBrief") or "-"}', f'- Feel words: {", ".join(A.get("feelWords") or []) or "-"}', f'- Apps/sites they love: {A.get("refLinks") or "-"}',
+    f'- How guests should find things: {A.get("navStyle") or "-"} · first on Home: {", ".join(A.get("homeFirst") or []) or "-"}',
+    f'- To avoid: {A.get("lookAvoid") or "-"}', f'- Starting kit: {kit_id or "none (decide from images)"} · layout base: {preset}',
+    f'- Palette from images: {json.dumps(palette)}', '', 'Design pass: write sites/<slug>/theme.css (tokens + component CSS on top of the preset), pick fonts in site.json theme.fonts, then check every page at 390 px.']) + '\n')
+(SITE / 'docs/untranslated.json').write_text(json.dumps(sorted(untranslated), ensure_ascii=False, indent=1))
+nf = SITE / 'netlify.toml'
+if not nf.exists():
+    nf.write_text(f'# Netlify: set "Base directory" to sites/{args.slug}.\n[build]\n  command = "cd ../.. && npm ci && npm run build -- {args.slug}"\n  publish = "dist"\n\n[[headers]]\n  for = "/sw.js"\n  [headers.values]\n    Cache-Control = "no-cache"\n')
+
+print(json.dumps({'site': str(SITE.relative_to(ROOT)), 'preset': preset, 'palette': palette, 'imageStats': stats,
+                  'languages': LANGS, 'sections': [(s['id'], s['status']) for s in sections], 'research': research,
+                  'warnings': WARN, 'untranslated': len(untranslated), 'photos': {k: len(v) for k, v in room_photos.items()}}, indent=1))

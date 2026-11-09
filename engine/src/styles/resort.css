@@ -1,0 +1,56 @@
+/* What resorts and countries add: the unit picker and bar, the Today notice, Korean line breaks. Loaded after app.css. */
+
+/* Korean breaks between words, never inside one (docs/UX-GUIDELINES: no word breaks mid-word). */
+:lang(ko){word-break:keep-all;overflow-wrap:break-word}
+
+/* Unit picker: one row per villa or room, grouped by kind. */
+.upick{display:flex;flex-direction:column;gap:10px}
+.ulist{display:flex;flex-direction:column;gap:8px}
+.urow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;width:100%;text-align:left;padding:14px 16px;border-radius:16px;background:var(--white);border:2px solid var(--line);color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.urow b{grid-column:1;font-size:18px;line-height:1.2}
+.urow small{grid-column:1;color:var(--muted);font-size:14px}
+.urow .chev{grid-column:2;grid-row:1 / span 2}
+.urow:active{border-color:var(--ink)}
+
+/* The guest's unit, over its page, with a way to change it. */
+.ubar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:16px;background:var(--white);border:2px solid var(--line)}
+.ubar span{display:flex;flex-direction:column;min-width:0}
+.ubar small{color:var(--muted);font-size:13px}
+.ubar b{font-size:18px;line-height:1.2}
+.ubar .btn{flex:none}
+
+/* Today: a notice from the resort on top of Home. */
+.notice{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:16px;background:var(--white);border-left:6px solid var(--tone-blue);box-shadow:0 1px 0 var(--line)}
+.notice[data-tone="red"]{border-left-color:var(--tone-red)}
+.notice[data-tone="orange"]{border-left-color:var(--tone-orange)}
+.notice small{color:var(--muted);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.notice b{font-size:18px;line-height:1.25}
+.notice p{margin:0;color:var(--ink);line-height:1.45}
+
+/* Korean: the looks' fonts have no Hangul, and the browser's fallback for a serif display font is a thin Korean serif.
+   Each face the looks bundle (src/presets.json) gets the phone's Korean sans for Hangul only (unicode-range), with the
+   same weight descriptor, so the browser joins them and Latin text keeps its font. The display serifs are drawn at 400,
+   so their Hangul is the bold face. Not found on a phone: the usual fallback. */
+@font-face{font-family:"DM Serif Display";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Fraunces";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo"),local("AppleSDGothicNeo-Regular"),local("Noto Sans KR"),local("NotoSansKR-Regular"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Fraunces";font-style:normal;font-weight:600;src:local("Apple SD Gothic Neo SemiBold"),local("AppleSDGothicNeo-SemiBold"),local("Noto Sans KR SemiBold"),local("NotoSansKR-SemiBold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Fraunces";font-style:normal;font-weight:700;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Geist";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo"),local("AppleSDGothicNeo-Regular"),local("Noto Sans KR"),local("NotoSansKR-Regular"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Geist";font-style:normal;font-weight:500;src:local("Apple SD Gothic Neo Medium"),local("AppleSDGothicNeo-Medium"),local("Noto Sans KR Medium"),local("NotoSansKR-Medium"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Geist";font-style:normal;font-weight:600;src:local("Apple SD Gothic Neo SemiBold"),local("AppleSDGothicNeo-SemiBold"),local("Noto Sans KR SemiBold"),local("NotoSansKR-SemiBold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Geist";font-style:normal;font-weight:700;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Jost";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo"),local("AppleSDGothicNeo-Regular"),local("Noto Sans KR"),local("NotoSansKR-Regular"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Jost";font-style:normal;font-weight:500;src:local("Apple SD Gothic Neo Medium"),local("AppleSDGothicNeo-Medium"),local("Noto Sans KR Medium"),local("NotoSansKR-Medium"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Jost";font-style:normal;font-weight:600;src:local("Apple SD Gothic Neo SemiBold"),local("AppleSDGothicNeo-SemiBold"),local("Noto Sans KR SemiBold"),local("NotoSansKR-SemiBold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Jost";font-style:normal;font-weight:700;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo"),local("AppleSDGothicNeo-Regular"),local("Noto Sans KR"),local("NotoSansKR-Regular"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:600;src:local("Apple SD Gothic Neo SemiBold"),local("AppleSDGothicNeo-SemiBold"),local("Noto Sans KR SemiBold"),local("NotoSansKR-SemiBold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:700;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Outfit";font-style:normal;font-weight:400;src:local("Apple SD Gothic Neo"),local("AppleSDGothicNeo-Regular"),local("Noto Sans KR"),local("NotoSansKR-Regular"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Outfit";font-style:normal;font-weight:500;src:local("Apple SD Gothic Neo Medium"),local("AppleSDGothicNeo-Medium"),local("Noto Sans KR Medium"),local("NotoSansKR-Medium"),local("Malgun Gothic");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Outfit";font-style:normal;font-weight:600;src:local("Apple SD Gothic Neo SemiBold"),local("AppleSDGothicNeo-SemiBold"),local("Noto Sans KR SemiBold"),local("NotoSansKR-SemiBold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+@font-face{font-family:"Outfit";font-style:normal;font-weight:700;src:local("Apple SD Gothic Neo Bold"),local("AppleSDGothicNeo-Bold"),local("Noto Sans KR Bold"),local("NotoSansKR-Bold"),local("Malgun Gothic Bold");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF}
+
+/* In the Mediterranean look, Good to know is a solid cobalt tile like Contacts: the same lemon arrow. */
+.gt[data-k="goodtoknow"]{--gofg:var(--med-navy,var(--ink))}
+.gt[data-k="goodtoknow"] .go{background:var(--med-lemon,#fff)}

@@ -13,6 +13,7 @@ Who the first resort is, and the demand behind it, is in `../BACKLOG.md` (the pr
 6. **Location:** a resort shows its real pin and directions (it is a business, on its own site and on Google Maps). Homes keep the pin offset of about 350 m.
 7. **Languages:** the Philippine profile starts with English and Korean.
 8. **Upkeep for now:** we build the guide (Yohann and a Claude session) from the resort's site and what it sends. The resort sends changes and a session applies them the same day. The resort's own editing comes with the maker.
+9. **Approach:** like Ca La Kimberly, first one perfect guide by hand, then the maker (Yohann). The first one is the resort's site with the most online.
 
 ## What a resort guide holds that a home guide does not
 These items are from the first resort's own pages and from research on Philippine resorts (9 Nov 2026). Anything not yet confirmed for the first resort is marked expected.
@@ -50,28 +51,28 @@ Every place outside the resort follows the existence rule (`Guest Guides/docs/CU
 - **With the maker (later, expected):** the owner or general manager sets the guide up. Front office or guest relations keep the daily parts current: Today, venue hours, activities. Small resorts are expected to have the owner do both. Resorts already tell guests about changes on WhatsApp, Viber, Messenger and boards, so a change should take one minute from a phone.
 
 ## How the code is set up
-- `engine/`: a copy of `Guest Guides/engine`, made when building starts, pinned to that commit in `engine/UPSTREAM.md`. Not copied yet (Guest Guides was at 801ac30 on 9 Nov 2026), so the copy starts from the newest engine.
-- New code goes in new files: `engine/src/views/resort-*.js`, `engine/src/styles/resort.css`, `profiles/types/home.json` and `resort.json`, `profiles/countries/es.json` and `ph.json`, `engine/src/i18n/ko.json`.
-- Every change to a copied file is listed in `engine/UPSTREAM.md` with its reason, and kept small (the router knowing the new views, the list of languages).
+- `engine/`: a copy of `Guest Guides/engine` at 801ac30 (9 Nov 2026), recorded in `engine/UPSTREAM.md`.
+- New code is in new files: `engine/src/resort/` (units, picker, Today notice, tile and row icons), `engine/src/styles/resort.css`, `engine/src/profiles.js` with `engine/src/profiles/types/{home,resort}.json` and `countries/{es,ph}.json`, `engine/src/i18n/ko.json`.
+- Every change to a copied file is listed in `engine/UPSTREAM.md` with its reason, and kept small (a few lines in main.js, section.js, home.js, events.js, the language list, the two checks).
 - A guide's data has the same shape as a Guest Guides site (`site.json`, `content/*.json`, `i18n/`), plus `site.type`, `site.country` and `content/units.json`. That is also the shape of a `guides` row in the database, so the merge moves the data without converting it.
 - Each section says where it applies (`types`, `countries`), so the profiles switch it on or off.
 
 ## Korean
 - Screen text in Korean (`ko.json`, every key the English file has) and the guide's content translated.
-- Fonts: the phone's own Korean fonts (Apple SD Gothic Neo on iPhone, Noto Sans KR on Android), nothing large to download, so the guide still works offline (expected: check on an Android phone).
+- Fonts: the phone's own Korean fonts (Apple SD Gothic Neo on iPhone, Noto Sans KR on Android), nothing large to download, so the guide still works offline. `resort.css` gives each bundled Latin font the Korean sans for Hangul only; without it the browser drew Korean headings in a thin serif. Checked in Chromium on a Mac; to check on a real iPhone and Android phone.
+- Wording: 해요체 (the friendly polite form), as German says du.
 - Line breaks: Korean breaks between words (`word-break: keep-all`), never inside one, as the UX rules ask.
 - Checks: the UX check at 360 px in Korean and English for Philippine guides (de and fr stay the check for Spain).
 - Nobody on our side reads Korean (expected): a Korean reader checks the guide before a real guest sees it.
 
 ## Steps
 1. Done 9 Nov 2026: this plan, the repo, the notes in `Ca La Kimberly`.
-2. Copy the engine and pin it. Read `site.type` and `site.country`, the profiles, the unit picker. A made-up demo resort (`sites/demo-*`) that runs locally in English and Korean.
-3. The first resort, locally and git-ignored, from its public site. A list of what to ask the resort.
+2. Done 9 Nov 2026: the engine copied and pinned; `site.type` and `site.country` with their profiles; the unit picker and the unit's page; the Today notice; Korean (screen text, fonts, line breaks, date ranges). Still to do: a made-up demo resort (`sites/demo-*`), so the public repo has a guide anyone can build.
+3. Done 9 Nov 2026: the first resort (its first site), locally and git-ignored, from its public site and Google (22 units, 8 things to do, 3 events, front desk and emergencies, getting here, good to know). Content check and UX check OK in English and Korean, every unit's page included. What to ask the resort: `sites/<its folder>/docs/questions-for-the-resort.md` (on Yohann's Mac only).
 4. Show Yohann, then the resort. Decide how it is published: its content is not in git, so Netlify cannot build it from the repo as it does Ca La Kimberly.
 5. Once the guide is right: plan the merge into Guest Guide Maker (profiles and sections into the engine, "What kind of place" and "Which country" in the builder and editor, the guide into the database).
 
 ## Open, to ask Yohann one at a time
-- Which of the first resort's two sites comes first. Expected: the one with the most online (named in `../BACKLOG.md`).
 - How guests reach their villa's page: a QR code in each villa, a link in the booking message, or both.
 - How the guide is published (step 4).
 - Whether the resort's Wi-Fi is one network for the site or one per villa (ask the resort).

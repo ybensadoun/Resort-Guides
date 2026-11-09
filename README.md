@@ -7,4 +7,4 @@ It starts in the Philippines, in English and Korean, and is built on a copy of t
 - Plan and decisions: [docs/plan.md](docs/plan.md)
 - Rules for Claude sessions: [CLAUDE.md](CLAUDE.md)
 
-Status (9 Nov 2026): plan agreed, no code yet.
+Status (9 Nov 2026): the engine copied and adapted (types and countries, units, Korean), a first resort guide running locally. Real resorts' content stays out of this public repo.

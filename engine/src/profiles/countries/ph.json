@@ -1,0 +1,21 @@
+{
+  "_doc": "Country profile: the Philippines (first version, 9 Nov 2026, see docs/plan.md). No weekly-market section: trips and water instead (things to do with the group water), one food and supplies line, a Good to know page (weather and boats, money, power), 911. Prices in pesos. languages: English and Korean (Yohann, 9 Nov 2026).",
+  "languages": ["en", "ko"],
+  "emergency": "911",
+  "currency": "PHP",
+  "sections": ["house", "message", "extras", "emergency", "arrival", "transport", "restaurants", "todo", "events", "nightlife", "essentials", "kids", "daytrips", "goodtoknow"],
+  "i18n": {
+    "en": {
+      "perPerson": "₱{p} per person",
+      "nothingToday": "No events today.",
+      "c_police": "Police, fire and coast guard",
+      "expectedNote": "Expected dates, based on previous years. Check closer to the time."
+    },
+    "ko": {
+      "perPerson": "1인 ₱{p}",
+      "nothingToday": "오늘은 행사가 없어요.",
+      "c_police": "경찰, 소방, 해안경비대",
+      "expectedNote": "지난 몇 년을 바탕으로 한 예상 날짜예요. 가까운 날짜에 다시 확인하세요."
+    }
+  }
+}

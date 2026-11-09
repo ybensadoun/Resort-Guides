@@ -17,3 +17,18 @@ A guide = type (home or resort) x country (Spain, Philippines, more later), each
 - Languages of the Philippine profile: English and Korean. Check at 360 px in Korean and English. A Korean reader checks before a real guest sees it.
 - Same writing rules as every project: no em-dashes, "expected" for anything not confirmed, existence rule for every place outside the resort (`../Guest Guides/docs/CURATION.md`), UX rules (`../Guest Guides/docs/UX-GUIDELINES.md`).
 - Commit when built and checked; Yohann pushes (GitHub Desktop). Nothing is live yet: how a guide is published is decided in step 4 of the plan.
+
+## Commands (from this folder, Node 20+; same as Guest Guides)
+| Command | What |
+|---|---|
+| `npm ci` | install (once) |
+| `npm run build -- <site>` | content check + build into `sites/<site>/dist` |
+| `npm run check -- <site>` | content check only (strings in every language, profiles, em-dashes, typography) |
+| `npm run dev -- <site>` | local server |
+| `npm run preview-file -- <site>` | one self-contained HTML in `sites/<site>/preview/` to open or send |
+| `node engine/scripts/ux-check.mjs <site>` | must print "UX check OK": every page, and every unit of a resort, at 360/390/430 px in every language. Needs `npm i --no-save playwright@1.64.1` (the version whose browser is installed on Yohann's Mac) |
+
+## Where things are
+- `engine/`: the copied engine. `engine/UPSTREAM.md`: where it comes from and every change for the merge. Resort and country code: `engine/src/resort/`, `engine/src/profiles/`, `engine/src/styles/resort.css`.
+- The first resort's folder in `sites/` (Mac only, git-ignored; who it is: `../BACKLOG.md`): the first guide. `docs/sources.json` (every place, its source and Google status), `docs/questions-for-the-resort.md`.
+- A unit's own link: `?unit=<id>` (ids in `content/units.json`), for a QR code in each villa.
