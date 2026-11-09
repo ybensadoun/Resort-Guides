@@ -336,5 +336,19 @@
   "g_water": "Boten & water",
   "goodToKnow": "Goed om te weten",
   "goodToKnowLead": "Weer en boten, geld, stroom en stekkers.",
-  "c_desk": "Receptie"
+  "c_desk": "Receptie",
+  "qSunset": "Zonsondergang",
+  "tours": "Uitstapjes",
+  "toursLead": "Boottochten en uitstapjes die de receptie voor je boekt.",
+  "plans": "Dagplannen",
+  "plansLead": "Kant-en-klare halve en hele dagen rond het resort.",
+  "foodLocal": "Lokaal eten",
+  "foodLocalLead": "De markt in het dorp, wat je moet proeven en wat je meeneemt.",
+  "tourFrom": "Vertrek",
+  "tourTime": "Duur",
+  "tourPrice": "Prijs",
+  "tourIncl": "Inbegrepen",
+  "tourBook": "Boeken bij de receptie",
+  "tourWeather": "Geen boten bij stormwaarschuwing: de receptie laat het de dag ervoor weten.",
+  "tourExpected": "Verwacht: de receptie bevestigt tijden en prijzen bij het boeken."
 }

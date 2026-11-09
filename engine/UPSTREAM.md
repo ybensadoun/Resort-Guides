@@ -13,6 +13,7 @@ Keep this list current. New files move over as they are.
 - `src/profiles.js`, `src/profiles/types/{home,resort}.json`, `src/profiles/countries/{es,ph}.json`: a guide = type x country (site.json `type`, `country`). Each profile has its own strings (engine < type < country < the guide's own) and the sections it allows (the content check enforces them).
 - `src/resort/`: `units.js` (the guest's villa or room: `content/units.json`, `?unit=<id>`, kept on the phone; runs before i18n.js), `picker.js` (the unit picker, the unit drawn as a house page, the Today notice from `content/notice.json`), `looks.js` (the Good to know tile), `icons.js` (row icons: money, plug, bus, plane, boat, weather, shield, bell, family), `index.js`.
 - `src/styles/resort.css`: picker, unit bar, Today notice, Korean line breaks (`keep-all`) and Korean fonts (the phone's Korean sans for Hangul only, one face per bundled weight).
+- `src/resort/trips.js` (kinds `tours` and `plans`), `src/resort/sun.js` (today's sunset, worked out on the phone, as a key fact on Home when site.json has `sunset`).
 - `scripts/unit-links.mjs` (`npm run unit-links`): a resort's QR sheet and booking links, one per unit.
 - `src/i18n/ko.json`: every engine string in Korean (해요체, the friendly polite form). To be checked by a Korean reader.
 
@@ -21,11 +22,12 @@ Keep this list current. New files move over as they are.
 - `src/i18n.js`: `LANG_NAMES` and `LOCALES` have `ko`.
 - `src/site-data.js`: `SITE_I18N` goes through `withProfiles` (type and country strings under the guide's own).
 - `src/main.js`: imports `styles/resort.css` after `map.css`, and `resort/index.js` before `i18n.js`.
-- `src/views/section.js`: imports from `resort/`; a resort's house page is the guest's unit (`unitPage`), or the picker when none is chosen, with the unit bar on top; the photo gallery only when there are photos; info pages show the photo link to the house only on the house guide (`message`) and only with a photo (Ca La Kimberly unchanged: its only info page is `message`, with a photo); `GUIDE_ICON` takes `MORE_GUIDE_ICONS`; highlights can use the `key` icon.
-- `src/views/home.js`: the Today notice under the house card; quick tile icons `desk` and `market`.
+- `src/views/section.js`: imports from `resort/`; a resort's house page is the guest's unit (`unitPage`), or the picker when none is chosen, with the unit bar on top; the photo gallery only when there are photos; info pages show the photo link to the house only on the house guide (`message`) and only with a photo (Ca La Kimberly unchanged: its only info page is `message`, with a photo); `GUIDE_ICON` takes `MORE_GUIDE_ICONS`; kinds `tours` and `plans` (resort/trips.js); highlights can use the `key` icon.
+- `src/views/home.js`: the Today notice under the house card; the sunset key fact; quick tile icons `desk` and `market`.
 - `src/events.js`: `dateRange` uses the locale's own range for month-first languages (Korean: 12월 16일~24일). Other languages unchanged.
 - `src/groups.json`: group `water` (Boats & water, tone pink).
-- `src/i18n/{en,es,fr,ca,de,nl}.json`: 18 new keys (`unitPickLead`, `unitYours`, `unitChange`, `u_*`, `noticeH`, `g_water`, `goodToKnow`, `goodToKnowLead`, `c_desk`).
+- `src/i18n/{en,es,fr,ca,de,nl}.json`: 32 new keys (`unitPickLead`, `unitYours`, `unitChange`, `u_*`, `noticeH`, `g_water`, `goodToKnow*`, `c_desk`, `qSunset`, `tours*`, `plans*`, `foodLocal*`, `tour*`).
+- `src/profiles/countries/*.json`: `timezone` (the sunset time is shown in it).
 - `scripts/check-content.js`: reads the profiles (they must exist, their strings count, each live section must be one they allow); lints `ko` texts.
 - `scripts/ux-check.mjs`: visits every section of the guide, and for a resort Home and the page of every unit.
 

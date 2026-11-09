@@ -336,5 +336,19 @@
   "g_water": "보트와 바다",
   "goodToKnow": "알아 두세요",
   "goodToKnowLead": "날씨와 보트, 돈, 전기와 플러그.",
-  "c_desk": "프런트 데스크"
+  "c_desk": "프런트 데스크",
+  "qSunset": "오늘 일몰",
+  "tours": "투어",
+  "toursLead": "프런트 데스크에서 예약해 드리는 보트 투어와 나들이예요.",
+  "plans": "하루 일정",
+  "plansLead": "리조트 주변에서 보내는 반나절과 하루 추천 일정이에요.",
+  "foodLocal": "현지 음식",
+  "foodLocalLead": "시내 시장, 꼭 먹어 볼 음식, 사 갈 만한 먹거리예요.",
+  "tourFrom": "출발",
+  "tourTime": "소요 시간",
+  "tourPrice": "요금",
+  "tourIncl": "포함 사항",
+  "tourBook": "프런트 데스크에서 예약",
+  "tourWeather": "태풍 신호가 발령되면 보트가 운항하지 않아요. 전날 프런트 데스크에서 알려 드려요.",
+  "tourExpected": "예상 정보예요. 예약할 때 프런트 데스크에서 시간과 요금을 확인해 드려요."
 }

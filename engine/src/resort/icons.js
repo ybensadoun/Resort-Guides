@@ -9,5 +9,9 @@ export const MORE_GUIDE_ICONS = {
   weather: GI('<circle cx="9" cy="8" r="3"/><path d="M9 2v1.5M3 8h1.5M4.8 3.8l1 1M13.2 3.8l-1 1"/><path d="M7 20h10a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 7 20z"/>'),
   shield: GI('<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
   bell: GI('<path d="M4 17a8 8 0 0 1 16 0z"/><path d="M2 20h20M12 9V6.5M10.5 6.5h3"/>'),
+  fish: GI('<path d="M2.5 12c3-4.5 9.5-6 14.5 0-5 6-11.5 4.5-14.5 0z"/><path d="M17 12l4.5-4v8z"/><circle cx="7" cy="11" r=".9" fill="currentColor"/>'),
+  route: GI('<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/>'),
+  sunset: GI('<path d="M5 17a7 7 0 0 1 14 0"/><path d="M2 17h20M5 21h14M12 3v3M4.2 8.2l2 2M19.8 8.2l-2 2"/>'),
+  bowl: GI('<path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M9 7c0-1.5 1-1.5 1-3M14 7c0-1.5 1-1.5 1-3M8 20h8"/>'),
   family: GI('<circle cx="8" cy="6" r="2.5"/><circle cx="16.5" cy="9" r="2"/><path d="M4 21v-6a4 4 0 0 1 8 0v6M13.5 21v-4a3 3 0 0 1 6 0v4"/>')
 };

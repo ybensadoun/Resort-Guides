@@ -54,3 +54,22 @@
 /* In the Mediterranean look, Good to know is a solid cobalt tile like Contacts: the same lemon arrow. */
 .gt[data-k="goodtoknow"]{--gofg:var(--med-navy,var(--ink))}
 .gt[data-k="goodtoknow"] .go{background:var(--med-lemon,#fff)}
+
+/* Tours and plans (resort/trips.js): the facts of a tour side by side, a plan's stops numbered. */
+.tfacts{display:grid;grid-template-columns:1fr;gap:8px;margin:4px 0}
+.tfact{display:flex;flex-direction:column;gap:1px}
+.tfact small{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pstops{margin:4px 0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.pstops li{padding-left:2px}
+.pstops b{display:block}.pstops a{color:inherit}
+.pstops span{display:block;color:var(--muted);font-size:15px;line-height:1.4}
+
+/* Three key facts under the house card (Wi-Fi, check-out, sunset) share one row. */
+.keyfacts:has(> :nth-child(3)){grid-template-columns:repeat(3,1fr)}
+
+/* In the Mediterranean look: Tours a solid cobalt tile, Day plans and Local food white walls with a cobalt frame. */
+.gt[data-k="tours"]{--gofg:var(--med-navy,var(--ink))}
+.gt[data-k="tours"] .go{background:var(--med-lemon,#fff)}
+.gt[data-k="plans"],.gt[data-k="food"]{--gofg:#fff;box-shadow:inset 0 0 0 2px var(--med-cobalt,var(--ink))}
+.gt[data-k="plans"] .ib,.gt[data-k="food"] .ib{color:var(--med-cobalt,var(--ink))}
+.gt[data-k="plans"] .go,.gt[data-k="food"] .go{background:var(--med-cobalt,var(--ink))}

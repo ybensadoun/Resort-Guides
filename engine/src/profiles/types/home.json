@@ -1,6 +1,26 @@
 {
   "_doc": "Type profile: a home (one house, one group of guests, a host who is never contacted). The engine's own strings are written for homes, so it changes none. sections: the sections a guide of this type can have (ids as in content/sections.json); notes: what a guide of this type must hold.",
-  "sections": ["house", "garbage", "message", "emergency", "transport", "markets", "restaurants", "todo", "events", "nightlife", "arrival", "essentials", "kids", "daytrips", "extras", "goodtoknow"],
+  "sections": [
+    "house",
+    "garbage",
+    "message",
+    "emergency",
+    "transport",
+    "markets",
+    "restaurants",
+    "todo",
+    "events",
+    "nightlife",
+    "arrival",
+    "essentials",
+    "kids",
+    "daytrips",
+    "extras",
+    "goodtoknow",
+    "tours",
+    "plans",
+    "food"
+  ],
   "notes": "Self check-in, the host is never contacted (no host phone), the house pin offset by about 350 m, one Wi-Fi, a house guide by room.",
   "i18n": {}
 }

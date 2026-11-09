@@ -336,5 +336,19 @@
   "g_water": "Boote & Wasser",
   "goodToKnow": "Gut zu wissen",
   "goodToKnowLead": "Wetter und Boote, Geld, Strom und Stecker.",
-  "c_desk": "Rezeption"
+  "c_desk": "Rezeption",
+  "qSunset": "Sonnenuntergang",
+  "tours": "Ausflüge",
+  "toursLead": "Bootstouren und Ausflüge, die die Rezeption für dich bucht.",
+  "plans": "Tagespläne",
+  "plansLead": "Fertige halbe und ganze Tage rund um das Resort.",
+  "foodLocal": "Lokales Essen",
+  "foodLocalLead": "Der Markt im Ort, was du probieren und was du mitnehmen kannst.",
+  "tourFrom": "Abfahrt",
+  "tourTime": "Dauer",
+  "tourPrice": "Preis",
+  "tourIncl": "Inklusive",
+  "tourBook": "An der Rezeption buchen",
+  "tourWeather": "Bei Sturmwarnung fahren keine Boote: Die Rezeption sagt es dir am Vortag.",
+  "tourExpected": "Voraussichtlich: Die Rezeption bestätigt Zeiten und Preise bei der Buchung."
 }

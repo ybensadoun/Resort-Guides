@@ -1,8 +1,33 @@
 {
   "_doc": "Country profile: Spain. The engine's own strings and research are written for Spain (Ca La Kimberly), so it changes none. languages: what a guide here offers by default. sections: the sections a guide here can have.",
-  "languages": ["en", "es", "fr", "ca", "de", "nl"],
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "ca",
+    "de",
+    "nl"
+  ],
   "emergency": "112",
   "currency": "EUR",
-  "sections": ["house", "garbage", "message", "emergency", "transport", "markets", "restaurants", "todo", "events", "nightlife", "arrival", "essentials", "kids", "daytrips", "extras", "goodtoknow"],
-  "i18n": {}
+  "sections": [
+    "house",
+    "garbage",
+    "message",
+    "emergency",
+    "transport",
+    "markets",
+    "restaurants",
+    "todo",
+    "events",
+    "nightlife",
+    "arrival",
+    "essentials",
+    "kids",
+    "daytrips",
+    "extras",
+    "goodtoknow"
+  ],
+  "i18n": {},
+  "timezone": "Europe/Madrid"
 }

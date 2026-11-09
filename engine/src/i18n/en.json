@@ -336,5 +336,19 @@
   "g_water": "Boats & water",
   "goodToKnow": "Good to know",
   "goodToKnowLead": "Weather and boats, money, power and plugs.",
-  "c_desk": "Front desk"
+  "c_desk": "Front desk",
+  "qSunset": "Sunset today",
+  "tours": "Tours",
+  "toursLead": "Boat trips and outings the front desk books for you.",
+  "plans": "Day plans",
+  "plansLead": "Ready-made half days and full days around the resort.",
+  "foodLocal": "Local food",
+  "foodLocalLead": "The town market, what to try and what to bring home.",
+  "tourFrom": "Leaves from",
+  "tourTime": "How long",
+  "tourPrice": "Price",
+  "tourIncl": "Included",
+  "tourBook": "Book at the front desk",
+  "tourWeather": "No boats when a storm signal is up: the front desk tells you the day before.",
+  "tourExpected": "Expected: the front desk confirms times and prices when you book."
 }

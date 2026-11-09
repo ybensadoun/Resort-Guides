@@ -15,6 +15,8 @@ Who the first resort is, and the demand behind it, is in `../BACKLOG.md` (the pr
 8. **Upkeep for now:** we build the guide (Yohann and a Claude session) from the resort's site and what it sends. The resort sends changes and a session applies them the same day. The resort's own editing comes with the maker.
 9. **Approach:** like Ca La Kimberly, first one perfect guide by hand, then the maker (Yohann). The first one is the resort's site with the most online.
 10. **How guests reach their unit:** a QR code in each villa and the link in the booking message, both opening the guide on that unit (`?unit=<id>`). `npm run unit-links -- <site> [address]` makes the printable QR sheet and the links with a booking-message line in each language. A unit's id is printed in its QR code: never rename one. Not printed until the guide's address is decided (the sheet says DRAFT until then).
+11. **Around the resort, not Ca La Kimberly's places (Yohann, 9 Nov 2026):** tours you book (duration, price, departure, weather), half and full-day plans (stops in order), today's sunset on Home, local food instead of markets (the town market, what to try, what to bring home). Places you visit on your own stay as they are.
+12. **Live fast on assumptions (Yohann, 9 Nov 2026):** the guide goes live with reasonable assumptions, marked expected; each is listed in the site's `docs/fix-later.md` and fixed from the owner's answers.
 
 ## What a resort guide holds that a home guide does not
 These items are from the first resort's own pages and from research on Philippine resorts (9 Nov 2026). Anything not yet confirmed for the first resort is marked expected.

@@ -336,5 +336,19 @@
   "g_water": "Barques i mar",
   "goodToKnow": "Bo de saber",
   "goodToKnowLead": "Temps i barques, diners, electricitat i endolls.",
-  "c_desk": "Recepció"
+  "c_desk": "Recepció",
+  "qSunset": "Posta de sol",
+  "tours": "Excursions",
+  "toursLead": "Sortides en barca i excursions que reserva la recepció.",
+  "plans": "Plans del dia",
+  "plansLead": "Mitges jornades i dies sencers a punt al voltant del resort.",
+  "foodLocal": "Menjar local",
+  "foodLocalLead": "El mercat del poble, què tastar i què endur-se'n.",
+  "tourFrom": "Surt de",
+  "tourTime": "Durada",
+  "tourPrice": "Preu",
+  "tourIncl": "Inclou",
+  "tourBook": "Reservar a recepció",
+  "tourWeather": "No hi ha barques amb alerta de tempesta: la recepció avisa el dia abans.",
+  "tourExpected": "Previst: la recepció confirma horaris i preus en reservar."
 }

@@ -336,5 +336,19 @@
   "g_water": "Barcos y agua",
   "goodToKnow": "Bueno saber",
   "goodToKnowLead": "Tiempo y barcos, dinero, electricidad y enchufes.",
-  "c_desk": "Recepción"
+  "c_desk": "Recepción",
+  "qSunset": "Puesta de sol",
+  "tours": "Excursiones",
+  "toursLead": "Salidas en barco y excursiones que reserva la recepción.",
+  "plans": "Planes del día",
+  "plansLead": "Medias jornadas y días completos listos alrededor del resort.",
+  "foodLocal": "Comida local",
+  "foodLocalLead": "El mercado del pueblo, qué probar y qué llevarse a casa.",
+  "tourFrom": "Sale de",
+  "tourTime": "Duración",
+  "tourPrice": "Precio",
+  "tourIncl": "Incluye",
+  "tourBook": "Reservar en recepción",
+  "tourWeather": "No hay barcos con alerta de tormenta: la recepción avisa el día antes.",
+  "tourExpected": "Previsto: la recepción confirma horarios y precios al reservar."
 }

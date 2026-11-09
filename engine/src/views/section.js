@@ -15,6 +15,7 @@ import GROUPS_FILE from '../groups.json';
 import { UNITS, UNIT } from '../resort/units.js';
 import { unitPicker, unitPage, unitBar } from '../resort/picker.js';
 import { MORE_GUIDE_ICONS } from '../resort/icons.js';
+import { toursHTML, plansHTML } from '../resort/trips.js';
 const GROUPS = GROUPS_FILE.groups;
 
 const GI = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -145,6 +146,8 @@ export function renderSection(V, id) {
       ${reviewsBlock(rate)}
       ${h.url ? `<div class="actions"><a class="btn primary" href="${esc(h.url)}" target="_blank" rel="noopener">${esc(t('bookAirbnb'))}</a>${h.photosUrl ? `<a class="btn" href="${esc(h.photosUrl)}" target="_blank" rel="noopener">${esc(t('allPhotosAirbnb'))}</a>` : ''}</div>` : ''}`;
   }
+  else if (sec.kind === 'tours') body = toursHTML(sec.data);   // trips to book (resort/trips.js)
+  else if (sec.kind === 'plans') body = plansHTML(sec.data);   // half and full days
   else if (sec.kind === 'events') {
     // Local events: next date of each, soonest first, grouped by month. Past dates (and today's finished ones) drop off.
     const fmt = (d, o) => d.toLocaleDateString(locale(), o);
