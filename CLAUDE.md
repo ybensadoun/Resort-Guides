@@ -1,7 +1,7 @@
 # Resort Guides: the guest guide for resorts (RESORTS)
 
 Read first: `../CLAUDE.md` (shared rules: publishing, privacy, languages, curation, UX), then `../PROJECTS.md` and `../CHANGES.md`, then `docs/plan.md` (what a resort guide is and every decision so far).
-This repo is PUBLIC (ybensadoun/resort-guides). No keys, no real resort's content, no business plans in it. Who the resorts are and the demand: `../BACKLOG.md`.
+This repo is PUBLIC (ybensadoun/Resort-Guides). No keys, no real resort's content, no business plans in it. Who the resorts are and the demand: `../BACKLOG.md`.
 
 ## What it is
 A guest guide for a resort: one site with many villas or rooms and different guests at once, starting in the Philippines. Apart from Guest Guide Maker for now; built so it merges into it later. Like Ca La Kimberly: one perfect guide by hand first, the maker after.
