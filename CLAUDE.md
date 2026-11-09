@@ -26,6 +26,7 @@ A guide = type (home or resort) x country (Spain, Philippines, more later), each
 | `npm run check -- <site>` | content check only (strings in every language, profiles, em-dashes, typography) |
 | `npm run dev -- <site>` | local server |
 | `npm run preview-file -- <site>` | one self-contained HTML in `sites/<site>/preview/` to open or send |
+| `npm run unit-links -- <site> [address]` | a resort's printable QR sheet (one card per unit) and its links for booking messages, in `sites/<site>/preview/`. DRAFT until the address is decided. Never rename a unit id: it is printed in its QR code |
 | `node engine/scripts/ux-check.mjs <site>` | must print "UX check OK": every page, and every unit of a resort, at 360/390/430 px in every language. Needs `npm i --no-save playwright@1.64.1` (the version whose browser is installed on Yohann's Mac) |
 
 ## Where things are

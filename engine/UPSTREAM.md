@@ -13,6 +13,7 @@ Keep this list current. New files move over as they are.
 - `src/profiles.js`, `src/profiles/types/{home,resort}.json`, `src/profiles/countries/{es,ph}.json`: a guide = type x country (site.json `type`, `country`). Each profile has its own strings (engine < type < country < the guide's own) and the sections it allows (the content check enforces them).
 - `src/resort/`: `units.js` (the guest's villa or room: `content/units.json`, `?unit=<id>`, kept on the phone; runs before i18n.js), `picker.js` (the unit picker, the unit drawn as a house page, the Today notice from `content/notice.json`), `looks.js` (the Good to know tile), `icons.js` (row icons: money, plug, bus, plane, boat, weather, shield, bell, family), `index.js`.
 - `src/styles/resort.css`: picker, unit bar, Today notice, Korean line breaks (`keep-all`) and Korean fonts (the phone's Korean sans for Hangul only, one face per bundled weight).
+- `scripts/unit-links.mjs` (`npm run unit-links`): a resort's QR sheet and booking links, one per unit.
 - `src/i18n/ko.json`: every engine string in Korean (해요체, the friendly polite form). To be checked by a Korean reader.
 
 ### Changed copied files

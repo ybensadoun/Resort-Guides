@@ -14,6 +14,7 @@ Who the first resort is, and the demand behind it, is in `../BACKLOG.md` (the pr
 7. **Languages:** the Philippine profile starts with English and Korean.
 8. **Upkeep for now:** we build the guide (Yohann and a Claude session) from the resort's site and what it sends. The resort sends changes and a session applies them the same day. The resort's own editing comes with the maker.
 9. **Approach:** like Ca La Kimberly, first one perfect guide by hand, then the maker (Yohann). The first one is the resort's site with the most online.
+10. **How guests reach their unit:** a QR code in each villa and the link in the booking message, both opening the guide on that unit (`?unit=<id>`). `npm run unit-links -- <site> [address]` makes the printable QR sheet and the links with a booking-message line in each language. A unit's id is printed in its QR code: never rename one. Not printed until the guide's address is decided (the sheet says DRAFT until then).
 
 ## What a resort guide holds that a home guide does not
 These items are from the first resort's own pages and from research on Philippine resorts (9 Nov 2026). Anything not yet confirmed for the first resort is marked expected.
@@ -73,6 +74,6 @@ Every place outside the resort follows the existence rule (`Guest Guides/docs/CU
 5. Once the guide is right: plan the merge into Guest Guide Maker (profiles and sections into the engine, "What kind of place" and "Which country" in the builder and editor, the guide into the database).
 
 ## Open, to ask Yohann one at a time
-- How guests reach their villa's page: a QR code in each villa, a link in the booking message, or both.
 - How the guide is published (step 4).
 - Whether the resort's Wi-Fi is one network for the site or one per villa (ask the resort).
+- A phone that adds the guide to its home screen keeps its own storage on iPhone (expected): the villa is asked again there. The QR link could carry it into the home-screen app later.
