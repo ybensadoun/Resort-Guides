@@ -72,10 +72,9 @@ Every place outside the resort follows the existence rule (`Guest Guides/docs/CU
 1. Done 9 Nov 2026: this plan, the repo, the notes in `Ca La Kimberly`.
 2. Done 9 Nov 2026: the engine copied and pinned; `site.type` and `site.country` with their profiles; the unit picker and the unit's page; the Today notice; Korean (screen text, fonts, line breaks, date ranges). Still to do: a made-up demo resort (`sites/demo-*`), so the public repo has a guide anyone can build.
 3. Done 9 Nov 2026: the first resort (its first site), locally and git-ignored, from its public site and Google (22 units, 8 things to do, 3 events, front desk and emergencies, getting here, good to know). Content check and UX check OK in English and Korean, every unit's page included. What to ask the resort: `sites/<its folder>/docs/questions-for-the-resort.md` (on Yohann's Mac only).
-4. Show Yohann, then the resort. Decide how it is published: its content is not in git, so Netlify cannot build it from the repo as it does Ca La Kimberly.
+4. Done 9 Nov 2026 (Yohann: live fast on assumptions): the first guide is live at its own Netlify address, uploaded from the Mac, public but out of search engines until the owner has checked it. QR sheet and booking links made with that address. Next: the owner's answers (the site's `docs/fix-later.md`), then search engines on.
 5. Once the guide is right: plan the merge into Guest Guide Maker (profiles and sections into the engine, "What kind of place" and "Which country" in the builder and editor, the guide into the database).
 
 ## Open, to ask Yohann one at a time
-- How the guide is published (step 4).
 - Whether the resort's Wi-Fi is one network for the site or one per villa (ask the resort).
 - A phone that adds the guide to its home screen keeps its own storage on iPhone (expected): the villa is asked again there. The QR link could carry it into the home-screen app later.

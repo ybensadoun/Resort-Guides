@@ -16,7 +16,8 @@ A guide = type (home or resort) x country (Spain, Philippines, more later), each
 - Resort exceptions to the shared rules (Yohann, 9 Nov 2026): the guide shows the official front desk channels the resort publishes (never a staff member's own number) and the resort's real pin. Homes keep their rules.
 - Languages of the Philippine profile: English and Korean. Check at 360 px in Korean and English. A Korean reader checks before a real guest sees it.
 - Same writing rules as every project: no em-dashes, "expected" for anything not confirmed, existence rule for every place outside the resort (`../Guest Guides/docs/CURATION.md`), UX rules (`../Guest Guides/docs/UX-GUIDELINES.md`).
-- Commit when built and checked; Yohann pushes (GitHub Desktop). Nothing is live yet: how a guide is published is decided in step 4 of the plan.
+- Commit when built and checked; Yohann pushes (GitHub Desktop).
+- Publishing (since 9 Nov 2026): a real resort's guide is its own Netlify project, uploaded from its built `dist` on Yohann's Mac (its content is not in git): `npm run build -- <site>`, then the Netlify connector's deploy (deploy-site gives a one-time command, run it inside `sites/<site>/dist`; `public/netlify.toml` there says: no build). Upload only with Yohann's OK. Production is public; deploy previews need the Netlify team login. Kept out of search engines (`public/_headers`, `robots.txt`) until the owner has checked the guide. After a change: rebuild, upload, then the UX check on the live address (`--url`).
 
 ## Commands (from this folder, Node 20+; same as Guest Guides)
 | Command | What |
