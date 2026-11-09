@@ -1,0 +1,21 @@
+node_modules/
+dist/
+preview/
+.DS_Store
+.tmp.drive*
+.trash*
+.env
+.env.*
+.netlify/
+__pycache__/
+*.pyc
+
+# Public repo: a real resort's content never goes into git. Only made-up demo resorts are committed.
+sites/*
+!sites/README.md
+!sites/demo-*/
+# Private values per site (Wi-Fi), even for demos
+sites/*/private/*
+!sites/*/private/README.md
+# Built engine assets copied into a site
+sites/*/public/vendor/
