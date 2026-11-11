@@ -1,5 +1,7 @@
 # Resort Guides: the guest guide for resorts (RESORTS)
 
+**Closed on 11 Nov 2026 (Yohann: resorts need different things; the maker stays on homes). Archived on GitHub, read-only. Do not build here: read `../Guest Guides/docs/reference-types-and-countries.md` and bring pieces over by hand.**
+
 Read first: `../CLAUDE.md` (shared rules: publishing, privacy, languages, curation, UX), then `../PROJECTS.md` and `../CHANGES.md`, then `docs/plan.md` (what a resort guide is and every decision so far).
 This repo is PUBLIC (ybensadoun/Resort-Guides). No keys, no real resort's content, no business plans in it. Who the resorts are and the demand: `../BACKLOG.md`.
 

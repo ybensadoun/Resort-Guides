@@ -7,4 +7,4 @@ It starts in the Philippines, in English and Korean, and is built on a copy of t
 - Plan and decisions: [docs/plan.md](docs/plan.md)
 - Rules for Claude sessions: [CLAUDE.md](CLAUDE.md)
 
-Status (9 Nov 2026): the engine copied and adapted (types and countries, units, Korean), a first resort guide live (uploaded from the Mac, out of search engines until the owner has checked it). Real resorts' content stays out of this public repo.
+**Closed on 11 Nov 2026 and archived.** The maker stays focused on homes (Airbnb, Booking.com and the like). What this project taught, and how to reuse its code, is in the Guest Guides repo: `docs/reference-types-and-countries.md`. Every change to the copied engine is listed in [engine/UPSTREAM.md](engine/UPSTREAM.md).
